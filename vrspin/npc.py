@@ -7,7 +7,7 @@ that enter its cone and smoothly rotates toward them via quaternion SLERP.
 
 from __future__ import annotations
 
-__all__ = ["NPC", "NPCState"]
+__all__ = ["NPC", "NPCState", "NPCAttentionAgent"]
 
 from enum import Enum, auto
 from typing import List, Optional
@@ -17,6 +17,7 @@ from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation as R, Slerp
 
 from spinstep import Node
+from spinstep.utils import is_within_angle_threshold, quaternion_distance
 
 from .cone import AttentionCone
 from .user import VRUser
@@ -214,3 +215,142 @@ class NPC:
 
     def __repr__(self) -> str:
         return f"NPC({self.name!r}, state={self.state.name})"
+
+
+# ---------------------------------------------------------------------------
+# NPCAttentionAgent — lightweight agent from the instruction-style API
+# ---------------------------------------------------------------------------
+
+
+class NPCAttentionAgent:
+    """An NPC that perceives and reacts to entities within its attention cone.
+
+    The NPC has its own perception cone.  When a user enters the cone, the
+    NPC smoothly rotates toward them via quaternion SLERP.  When the user
+    leaves, the NPC returns to its idle orientation.
+
+    This class operates on raw quaternions and does not require a
+    :class:`~vrspin.user.VRUser` instance, making it suitable for
+    the engine-agnostic scene API (:mod:`vrspin.scene`).
+
+    Args:
+        entity: A scene entity (anything with ``.name`` and ``.orientation``
+            attributes) representing this NPC.
+        perception_half_angle: Half-angle of the NPC's perception cone
+            in radians.
+        turn_speed: Interpolation factor for smooth turning (``0``–``1`` per
+            update).  Higher values mean faster turning.
+        idle_orientation: Default orientation when no target is attended.
+            If ``None``, the entity's initial orientation is used.
+
+    Example::
+
+        from vrspin.scene import SceneEntity
+        from vrspin.npc import NPCAttentionAgent
+        import numpy as np
+
+        npc_entity = SceneEntity("vendor", [0, 0, 0, 1], entity_type="npc")
+        npc = NPCAttentionAgent(npc_entity, perception_half_angle=np.radians(40))
+        user_quat = [0.1, 0, 0, 0.995]
+        if npc.is_aware_of(user_quat):
+            npc.update(targets=[user_quat], dt=1 / 60)
+    """
+
+    def __init__(
+        self,
+        entity: object,
+        perception_half_angle: float,
+        turn_speed: float = 0.1,
+        idle_orientation: Optional[ArrayLike] = None,
+    ) -> None:
+        self.entity = entity
+        self.perception_half_angle: float = float(perception_half_angle)
+        self.turn_speed: float = float(turn_speed)
+        self.idle_orientation: np.ndarray = (
+            np.array(idle_orientation, dtype=float)
+            if idle_orientation is not None
+            else np.array(entity.orientation, dtype=float).copy()
+        )
+
+    # ------------------------------------------------------------------
+    # Perception
+    # ------------------------------------------------------------------
+
+    def is_aware_of(self, target_quat: ArrayLike) -> bool:
+        """Return ``True`` if *target_quat* is within the perception cone.
+
+        Delegates to SpinStep's :func:`~spinstep.utils.is_within_angle_threshold`.
+
+        Args:
+            target_quat: Quaternion ``[x, y, z, w]`` to test.
+        """
+        target = np.asarray(target_quat, dtype=float)
+        norm = np.linalg.norm(target)
+        if norm < 1e-8:
+            return False
+        target = target / norm
+        return bool(
+            is_within_angle_threshold(
+                self.entity.orientation, target, self.perception_half_angle
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # Smooth rotation
+    # ------------------------------------------------------------------
+
+    def face_toward(self, target_quat: ArrayLike, t: float) -> None:
+        """SLERP the entity's orientation toward *target_quat* by fraction *t*.
+
+        Args:
+            target_quat: Desired orientation ``[x, y, z, w]``.
+            t: Interpolation fraction in ``[0, 1]``.
+        """
+        target = np.asarray(target_quat, dtype=float)
+        target = target / np.linalg.norm(target)
+
+        current = R.from_quat(self.entity.orientation)
+        goal = R.from_quat(target)
+        key_rots = R.from_quat(np.stack([current.as_quat(), goal.as_quat()]))
+        interp = Slerp([0.0, 1.0], key_rots)
+        new_quat = interp([t])[0].as_quat()
+        new_quat = new_quat / np.linalg.norm(new_quat)
+        self.entity.orientation[:] = new_quat
+
+    # ------------------------------------------------------------------
+    # Per-frame update
+    # ------------------------------------------------------------------
+
+    def update(self, targets: List[ArrayLike], dt: float) -> None:
+        """Advance the NPC by one simulation step.
+
+        Finds the closest target inside the perception cone and SLERP-rotates
+        toward it.  If no targets are in range the NPC rotates back toward
+        its idle orientation.
+
+        Args:
+            targets: List of quaternions ``[x, y, z, w]`` representing
+                potential attention targets (e.g. users).
+            dt: Time-step in seconds (used to scale the turn speed).
+        """
+        # Find closest target within cone
+        best_target = None
+        best_dist = float("inf")
+        for tq in targets:
+            tq_arr = np.asarray(tq, dtype=float)
+            norm = np.linalg.norm(tq_arr)
+            if norm < 1e-8:
+                continue
+            tq_arr = tq_arr / norm
+            dist = float(quaternion_distance(self.entity.orientation, tq_arr))
+            if dist < self.perception_half_angle and dist < best_dist:
+                best_dist = dist
+                best_target = tq_arr
+
+        t = min(1.0, self.turn_speed * dt * 60.0)  # normalize for ~60 fps
+        if best_target is not None:
+            self.face_toward(best_target, t)
+        else:
+            # Return to idle orientation
+            self.face_toward(self.idle_orientation, t)
+
