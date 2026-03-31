@@ -1,1 +1,251 @@
+document:
+  title: "VRSpin Demo Design: Look & Interact"
+  version: "1.0"
+  status: "Implementation Ready"
+  author: "Repository Advisor & Designer"
 
+# =========================================================
+# CORE PRINCIPLE
+# =========================================================
+
+core:
+  representation: "quaternion_only"
+  rule: >
+    All orientation and angular comparisons MUST be performed using quaternions.
+    Direction vectors may be derived but MUST NOT be used as primary comparison inputs.
+
+# =========================================================
+# DATA MODELS (STRICT CONTRACTS)
+# =========================================================
+
+data_models:
+
+  Quaternion:
+    type: array
+    length: 4
+    format: [x, y, z, w]
+
+  Vec3:
+    type: array
+    length: 3
+    format: [x, y, z]
+
+  SceneEntity:
+    type: object
+    required: [id, position, orientation, entity_type]
+    properties:
+      id:
+        type: string
+      position:
+        $ref: "#/data_models/Vec3"
+      orientation:
+        $ref: "#/data_models/Quaternion"
+      entity_type:
+        type: string
+      metadata:
+        type: object
+        additionalProperties: true
+
+  AttentionResult:
+    type: object
+    required: [entity_id, in_attention, angular_distance]
+    properties:
+      entity_id:
+        type: string
+      in_attention:
+        type: boolean
+      angular_distance:
+        type: float
+      weight:
+        type: float
+        description: "Optional relevance score (used in multi-head attention)"
+
+# =========================================================
+# COMPONENTS
+# =========================================================
+
+components:
+
+  AttentionCone:
+    type: spatial_query
+    inputs:
+      - origin_quaternion
+      - half_angle_radians
+    outputs:
+      - AttentionResult[]
+    methods:
+      - contains(entity_orientation_quat) -> bool
+      - compute_distance(entity_orientation_quat) -> float
+      - query_entities(entities: SceneEntity[]) -> AttentionResult[]
+
+  AttentionManager:
+    type: orchestrator
+    state:
+      registered_entities: SceneEntity[]
+    methods:
+      - register_entity(entity: SceneEntity)
+      - update(user_quaternion: Quaternion) -> AttentionResult[]
+      - get_attended_entities() -> SceneEntity[]
+
+  NPCAttentionAgent:
+    type: agent
+    state:
+      orientation: Quaternion
+      awareness:
+        type: list
+        items:
+          entity_id: string
+          last_seen_timestamp: float
+          confidence: float
+    methods:
+      - update(user_quaternion: Quaternion, entities: SceneEntity[])
+      - is_aware_of(entity_id: string) -> boolean
+      - compute_rotation_to_target(target_quaternion: Quaternion) -> Quaternion
+
+  MultiHeadAttention:
+    type: multi_modal_attention
+    inputs:
+      - visual_cone: AttentionCone
+      - audio_cone: AttentionCone
+      - haptic_cone: AttentionCone
+    config:
+      merge_strategy:
+        type: weighted_sum
+        weights:
+          visual: 0.7
+          audio: 0.2
+          haptic: 0.1
+    methods:
+      - update(entities: SceneEntity[]) -> AttentionResult[]
+      - merge_results(results_by_channel) -> AttentionResult[]
+
+# =========================================================
+# MATHEMATICAL UTILITIES
+# =========================================================
+
+utilities:
+
+  - name: quaternion_distance
+    input: [Quaternion, Quaternion]
+    output: float
+    description: "Angular distance in radians between two orientations"
+
+  - name: forward_vector_from_quaternion
+    input: Quaternion
+    output: Vec3
+    description: "Derived forward vector (for rendering/debug only)"
+
+  - name: direction_to_quaternion
+    input: Vec3
+    output: Quaternion
+
+  - name: slerp
+    input: [Quaternion, Quaternion, float]
+    output: Quaternion
+
+# =========================================================
+# RELATIONSHIPS
+# =========================================================
+
+relationships:
+
+  - from: AttentionManager
+    to: SceneEntity
+    type: manages
+
+  - from: AttentionManager
+    to: AttentionCone
+    type: uses_for_query
+
+  - from: AttentionCone
+    to: SceneEntity
+    type: evaluates_orientation_against
+
+  - from: NPCAttentionAgent
+    to: SceneEntity
+    type: observes
+
+  - from: NPCAttentionAgent
+    to: AttentionCone
+    type: uses_perception_model
+
+  - from: MultiHeadAttention
+    to: AttentionCone
+    type: composes_multiple_modalities
+
+# =========================================================
+# BRIDGE PROTOCOL (ENGINE ↔ PYTHON)
+# =========================================================
+
+bridge_protocol:
+
+  transport: "WebSocket"
+  encoding: "JSON"
+
+  messages:
+
+    - type: "update_user_pose"
+      direction: "engine_to_python"
+      payload:
+        position: Vec3
+        orientation: Quaternion
+
+    - type: "update_scene_entities"
+      direction: "engine_to_python"
+      payload:
+        entities: SceneEntity[]
+
+    - type: "attention_results"
+      direction: "python_to_engine"
+      payload:
+        results: AttentionResult[]
+
+# =========================================================
+# EXECUTION MODEL
+# =========================================================
+
+execution:
+
+  loop:
+    - receive: update_user_pose
+    - receive: update_scene_entities
+    - process: AttentionManager.update(user_quaternion)
+    - process: MultiHeadAttention.update(entities)
+    - send: attention_results
+
+# =========================================================
+# DESIGN CONSTRAINTS
+# =========================================================
+
+constraints:
+
+  - "No modification to existing SpinStep core"
+  - "Quaternion-only comparisons for attention logic"
+  - "Bridge layer must remain engine-agnostic"
+  - "Attention evaluation must be deterministic per frame"
+
+# =========================================================
+# DELIVERY PLAN
+# =========================================================
+
+delivery:
+
+  phases:
+
+    - phase: 1
+      name: "Core Attention"
+      outputs:
+        - AttentionCone
+        - quaternion utilities
+
+    - phase: 2
+      name: "Scene + NPC"
+      outputs:
+        - SceneEntity
+        - AttentionManager
+        - NPCAttentionAgent
+
+    - phase: 3
+      name: "Multi-Modal Attention"
+      outputs:
+        - MultiHeadAttention
