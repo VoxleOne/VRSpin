@@ -347,7 +347,7 @@ class NPCAttentionAgent:
                 best_dist = dist
                 best_target = tq_arr
 
-        t = min(1.0, self.turn_speed * dt * 60.0)  # normalise for ~60 fps
+        t = min(1.0, self.turn_speed * dt * 60.0)  # normalize for ~60 fps
         if best_target is not None:
             self.face_toward(best_target, t)
         else:

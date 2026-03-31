@@ -181,7 +181,7 @@ async def main(host: str = "localhost", port: int = 8765) -> None:
         port: Bind port.
     """
     try:
-        import websockets  # noqa: F811
+        import websockets
     except ImportError:
         print(
             "ERROR: 'websockets' package is required.\n"
