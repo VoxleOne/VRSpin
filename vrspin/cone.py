@@ -10,11 +10,15 @@ from __future__ import annotations
 
 __all__ = ["AttentionCone"]
 
+from typing import List
+
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation as R
 
 from spinstep import DiscreteOrientationSet
+
+from .models import AttentionResult, SceneEntity
 
 
 class AttentionCone:
@@ -148,3 +152,53 @@ class AttentionCone:
         return float(
             (R.from_quat(self.orientation).inv() * R.from_quat(target)).magnitude()
         )
+
+    # ------------------------------------------------------------------
+    # Architecture-spec methods
+    # ------------------------------------------------------------------
+
+    def contains(self, entity_orientation_quat: ArrayLike) -> bool:
+        """Return ``True`` if *entity_orientation_quat* falls within this cone.
+
+        Alias for :meth:`is_in_cone` matching the architecture specification.
+
+        Args:
+            entity_orientation_quat: Quaternion ``[x, y, z, w]`` to test.
+        """
+        return self.is_in_cone(entity_orientation_quat)
+
+    def compute_distance(self, entity_orientation_quat: ArrayLike) -> float:
+        """Return the angular distance in radians to *entity_orientation_quat*.
+
+        Alias for :meth:`angular_distance_to` matching the architecture
+        specification.
+
+        Args:
+            entity_orientation_quat: Quaternion ``[x, y, z, w]``.
+        """
+        return self.angular_distance_to(entity_orientation_quat)
+
+    def query_entities(self, entities: List[SceneEntity]) -> List[AttentionResult]:
+        """Evaluate a list of scene entities against this attention cone.
+
+        For each entity the method computes the angular distance and whether
+        the entity falls inside the cone.
+
+        Args:
+            entities: Sequence of :class:`~vrspin.models.SceneEntity` objects.
+
+        Returns:
+            List of :class:`~vrspin.models.AttentionResult`, one per entity.
+        """
+        results: List[AttentionResult] = []
+        for entity in entities:
+            dist = self.angular_distance_to(entity.orientation)
+            in_cone = dist < self.half_angle
+            results.append(
+                AttentionResult(
+                    entity_id=entity.id,
+                    in_attention=in_cone,
+                    angular_distance=dist,
+                )
+            )
+        return results
