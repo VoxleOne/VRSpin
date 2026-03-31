@@ -17,6 +17,9 @@ from .cone import AttentionCone
 from .models import AttentionResult, SceneEntity
 
 
+_MAX_ANGULAR_DISTANCE: float = float(np.pi)
+
+
 class MultiHeadAttention:
     """Multi-modal attention that merges visual, audio, and haptic cones.
 
@@ -115,14 +118,14 @@ class MultiHeadAttention:
         for idx, eid in enumerate(entity_ids):
             total_weight = 0.0
             any_in_attention = False
-            min_distance = float(np.pi)
+            min_distance = _MAX_ANGULAR_DISTANCE
 
             for channel_name, channel_results in results_by_channel.items():
                 r = channel_results[idx]
                 channel_w = self.weights.get(channel_name, 0.0)
                 if r.in_attention:
                     any_in_attention = True
-                    proximity = 1.0 - r.angular_distance / np.pi
+                    proximity = 1.0 - r.angular_distance / _MAX_ANGULAR_DISTANCE
                     total_weight += channel_w * proximity
                 min_distance = min(min_distance, r.angular_distance)
 

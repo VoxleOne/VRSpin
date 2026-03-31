@@ -96,8 +96,7 @@ class NPCAttentionAgent:
 
         observed_ids: set = set()
         for entity in entities:
-            dist = self.cone.angular_distance_to(entity.orientation)
-            in_cone = dist < self.cone.half_angle
+            in_cone = self.cone.contains(entity.orientation)
             if in_cone:
                 observed_ids.add(entity.id)
                 self.awareness[entity.id] = _AwarenessEntry(
