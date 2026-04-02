@@ -5,6 +5,17 @@ A matplotlib-based top-down view of the VRSpin virtual plaza that visualizes
 orientation-driven attention cones, entity highlighting, NPC awareness, and
 spatial audio gain in real time.
 
+All quaternion operations use **SpinStep** primitives directly:
+
+* :func:`~spinstep.utils.quaternion_from_euler` — convert user yaw to quaternion
+* :func:`~spinstep.utils.forward_vector_from_quaternion` — extract gaze direction
+* :func:`~spinstep.utils.quaternion_distance` — angular distance between orientations
+* :func:`~spinstep.utils.is_within_angle_threshold` — cone membership test
+* :func:`~spinstep.utils.batch_quaternion_angle` — vectorised distance matrix
+* :func:`~spinstep.utils.get_relative_spin` — NPC-to-user rotation delta
+* :class:`~spinstep.Node` — scene-tree nodes
+* :class:`~spinstep.QuaternionDepthIterator` — orientation-aligned tree traversal
+
 Controls::
 
     Left/Right arrow keys   Rotate user orientation (yaw)
@@ -20,7 +31,7 @@ Run::
 Requirements::
 
     pip install matplotlib numpy scipy
-    pip install -e .  # install vrspin
+    pip install -e .  # install vrspin (pulls in spinstep)
 
 """
 
@@ -42,12 +53,27 @@ def _ensure_agg_backend() -> None:
             matplotlib.use("Agg")
         except Exception:
             pass
-import matplotlib.patches as mpatches
-from matplotlib.patches import FancyArrowPatch, Wedge
-from matplotlib.collections import PatchCollection
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 
+
+import matplotlib.patches as mpatches
+from matplotlib.patches import Wedge
+import numpy as np
+
+# ---------------------------------------------------------------------------
+# SpinStep imports — the quaternion-driven orientation framework that powers
+# all perception mechanics in this visualization.
+# ---------------------------------------------------------------------------
+from spinstep import Node, QuaternionDepthIterator
+from spinstep.utils import (
+    quaternion_from_euler,
+    forward_vector_from_quaternion,
+    quaternion_distance,
+    is_within_angle_threshold,
+    batch_quaternion_angle,
+    get_relative_spin,
+)
+
+# VRSpin classes — built on top of SpinStep primitives.
 from vrspin import (
     AttentionCone,
     VirtualPlaza,
@@ -147,6 +173,12 @@ class VisualizationState:
     audio_strengths: Dict[str, float] = field(default_factory=dict)
     haptic_strengths: Dict[str, float] = field(default_factory=dict)
 
+    # SpinStep primitive results — showcasing the underlying framework
+    tree_attended_names: List[str] = field(default_factory=list)
+    entity_distances_deg: Dict[str, float] = field(default_factory=dict)
+    npc_relative_spins_deg: Dict[str, float] = field(default_factory=dict)
+    user_forward_vector: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+
 
 # ---------------------------------------------------------------------------
 # Core visualization logic
@@ -161,6 +193,16 @@ def compute_plaza_state(
 ) -> VisualizationState:
     """Run one plaza tick and capture the full state for visualization.
 
+    Uses SpinStep primitives throughout:
+
+    * :func:`~spinstep.utils.quaternion_from_euler` for user orientation
+    * :func:`~spinstep.utils.forward_vector_from_quaternion` for gaze direction
+    * :func:`~spinstep.utils.quaternion_distance` for per-entity distances
+    * :func:`~spinstep.utils.is_within_angle_threshold` (via AttentionCone)
+    * :func:`~spinstep.utils.batch_quaternion_angle` (via AttentionCone)
+    * :func:`~spinstep.utils.get_relative_spin` for NPC rotation deltas
+    * :class:`~spinstep.QuaternionDepthIterator` for scene-tree traversal
+
     Args:
         user_yaw_deg: User's yaw angle in degrees (0 = north/+Z).
         show_visual: Whether visual cone is displayed.
@@ -173,8 +215,14 @@ def compute_plaza_state(
     plaza = VirtualPlaza()
     user = VRUser("Viewer")
 
-    user_quat = R.from_euler("y", user_yaw_deg, degrees=True).as_quat()
+    # SpinStep: quaternion_from_euler — convert headset yaw to quaternion.
+    user_quat = quaternion_from_euler(
+        [user_yaw_deg, 0, 0], order="yxz", degrees=True,
+    )
     user.set_orientation(user_quat)
+
+    # SpinStep: forward_vector_from_quaternion — extract gaze direction.
+    fwd = forward_vector_from_quaternion(user_quat)
 
     # Run two ticks so NPCs can transition
     plaza.tick(user)
@@ -185,7 +233,38 @@ def compute_plaza_state(
         show_visual=show_visual,
         show_audio=show_audio,
         show_haptic=show_haptic,
+        user_forward_vector=(float(fwd[0]), float(fwd[1]), float(fwd[2])),
     )
+
+    # SpinStep: QuaternionDepthIterator — traverse the Node tree using
+    # the user's orientation as the rotation step.
+    try:
+        for node in QuaternionDepthIterator(
+            plaza.root, user_quat, angle_threshold=np.deg2rad(45.0),
+        ):
+            state.tree_attended_names.append(node.name)
+    except Exception:
+        pass  # traversal may produce no results; that is fine
+
+    # SpinStep: quaternion_distance — per-entity angular distances.
+    all_entities = (
+        [(obj.name, obj.orientation) for obj in plaza.objects]
+        + [(npc.name, npc.orientation) for npc in plaza.npcs]
+        + [(a.name, a.orientation) for a in plaza.audio_sources]
+        + [(p.name, p.orientation) for p in plaza.knowledge_panels]
+    )
+    for name, quat in all_entities:
+        dist_rad = float(quaternion_distance(user_quat, quat))
+        state.entity_distances_deg[name] = float(np.rad2deg(dist_rad))
+
+    # SpinStep: get_relative_spin — compute rotation delta NPC→user.
+    user_node = Node("user", user_quat)
+    for npc in plaza.npcs:
+        rel_quat = get_relative_spin(npc.node, user_node)
+        rel_angle_deg = float(
+            np.rad2deg(quaternion_distance(rel_quat, np.array([0, 0, 0, 1])))
+        )
+        state.npc_relative_spins_deg[npc.name] = rel_angle_deg
 
     # Active objects
     for obj in plaza.objects:
@@ -254,7 +333,7 @@ def render_frame(state: VisualizationState, filepath: Optional[str] = None) -> p
     # Title
     fig.text(
         0.5, 0.97,
-        "VRSpin Plaza — Orientation-Driven Attention Visualization",
+        "VRSpin Plaza — SpinStep Orientation-Driven Attention Visualization",
         ha="center", va="top",
         fontsize=14, fontweight="bold",
         color=COLORS["text"],
@@ -573,6 +652,34 @@ def _draw_info_panel(ax: plt.Axes, state: VisualizationState) -> None:
         _text("RECENT EVENTS", bold=True, size=9, color="#94a3b8")
         for evt in state.events[:_MAX_DISPLAYED_EVENTS]:
             _text(f"  {evt[:55]}", color="#cbd5e1", indent=1, size=7)
+    y -= 0.01
+
+    # SpinStep primitives showcase
+    _text("SPINSTEP PRIMITIVES", bold=True, size=9, color="#f472b6")
+    fwd = state.user_forward_vector
+    _text(
+        f"  forward_vector: [{fwd[0]:+.2f}, {fwd[1]:+.2f}, {fwd[2]:+.2f}]",
+        color="#f9a8d4", indent=1, size=7,
+    )
+    tree_count = len(state.tree_attended_names)
+    _text(
+        f"  QuaternionDepthIterator: {tree_count} nodes visited",
+        color="#f9a8d4", indent=1, size=7,
+    )
+    for name in ("Fountain", "MarketStand", "Elena", "Kai"):
+        dist = state.entity_distances_deg.get(name)
+        if dist is not None:
+            _text(
+                f"  quat_distance({name}): {dist:.1f}°",
+                color="#f9a8d4", indent=1, size=7,
+            )
+    for npc_name in ("Elena", "Kai"):
+        spin = state.npc_relative_spins_deg.get(npc_name)
+        if spin is not None:
+            _text(
+                f"  relative_spin({npc_name}): {spin:.1f}°",
+                color="#f9a8d4", indent=1, size=7,
+            )
 
 
 def _strength_bar(value: float, width: int = 10) -> str:

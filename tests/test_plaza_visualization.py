@@ -96,6 +96,45 @@ class TestComputePlazaState:
             assert isinstance(state, VisualizationState)
             assert state.user_yaw_deg == float(angle)
 
+    def test_spinstep_forward_vector_populated(self):
+        """forward_vector_from_quaternion produces a valid gaze direction."""
+        state = compute_plaza_state(0.0)
+        fwd = state.user_forward_vector
+        assert len(fwd) == 3
+        # Facing north (0° yaw) the forward vector should point along -Z or +Z
+        length = (fwd[0] ** 2 + fwd[1] ** 2 + fwd[2] ** 2) ** 0.5
+        assert abs(length - 1.0) < 0.01  # unit vector
+
+    def test_spinstep_tree_traversal_populated(self):
+        """QuaternionDepthIterator visits nodes in the scene tree."""
+        state = compute_plaza_state(0.0)
+        assert isinstance(state.tree_attended_names, list)
+        # The tree has the root "plaza" plus zone nodes
+        assert len(state.tree_attended_names) > 0
+
+    def test_spinstep_entity_distances_populated(self):
+        """quaternion_distance produces per-entity angular distances."""
+        state = compute_plaza_state(0.0)
+        assert "Fountain" in state.entity_distances_deg
+        assert "Elena" in state.entity_distances_deg
+        # Fountain at north should be near 0° when facing north
+        assert state.entity_distances_deg["Fountain"] < 10.0
+
+    def test_spinstep_relative_spins_populated(self):
+        """get_relative_spin produces NPC rotation deltas."""
+        state = compute_plaza_state(0.0)
+        assert "Elena" in state.npc_relative_spins_deg
+        assert "Kai" in state.npc_relative_spins_deg
+        # Elena (north) should have small relative spin when user faces north
+        assert state.npc_relative_spins_deg["Elena"] < 20.0
+
+    def test_spinstep_distances_change_with_orientation(self):
+        """quaternion_distance values vary when user rotates."""
+        state_n = compute_plaza_state(0.0)
+        state_e = compute_plaza_state(-70.0)
+        # Fountain distance should increase when turning east
+        assert state_e.entity_distances_deg["Fountain"] > state_n.entity_distances_deg["Fountain"]
+
 
 # ---------------------------------------------------------------------------
 # render_frame
