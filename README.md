@@ -97,6 +97,20 @@ pip install -r requirements.txt
 python demo_look_and_interact.py
 ```
 
+### Desktop Visualization (no VR headset needed)
+
+```bash
+pip install matplotlib
+
+# Interactive mode (rotate with arrow keys)
+python examples/plaza_visualization.py
+
+# Generate static PNG frames
+python examples/plaza_visualization.py --static
+```
+
+See [examples/plaza_visualization_README.md](examples/plaza_visualization_README.md) for full documentation.
+
 ### Run Tests
 
 ```bash
@@ -117,8 +131,13 @@ vrspin/
   entities.py        — InteractiveObject, AudioSource, KnowledgePanel, PanelPage
   plaza.py           — VirtualPlaza: scene-tree + simulation tick engine
 demo_look_and_interact.py  — runnable step-by-step interaction scenario
+examples/
+  plaza_visualization.py       — interactive top-down attention-cone visualization
+  plaza_visualization_README.md — documentation for the visualization demo
+  vr_bridge_server.py          — WebSocket bridge for Unity/Unreal integration
 tests/
-  test_vrspin.py     — 59 unit tests covering all modules
+  test_vrspin.py               — 59 unit tests covering all modules
+  test_plaza_visualization.py  — 22 tests for visualization logic
 ```
 
 ---
