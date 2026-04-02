@@ -31,9 +31,17 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib
-matplotlib.use("Agg")  # non-interactive backend for initial setup
-
 import matplotlib.pyplot as plt
+
+
+def _ensure_agg_backend() -> None:
+    """Switch to the non-interactive Agg backend if no display is available."""
+    current = matplotlib.get_backend()
+    if current.lower() not in ("agg",):
+        try:
+            matplotlib.use("Agg")
+        except Exception:
+            pass
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, Wedge
 from matplotlib.collections import PatchCollection
@@ -72,6 +80,9 @@ COLORS = {
     "text": "#e2e8f0",
     "event_bg": "#0f172a",
 }
+
+# Maximum number of recent events to display in the info panel.
+_MAX_DISPLAYED_EVENTS = 5
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +226,7 @@ def compute_plaza_state(
             state.haptic_strengths[obj.name] = strength
 
     # Events
-    state.events = [str(e) for e in events_list[:6]]
+    state.events = [str(e) for e in events_list[:_MAX_DISPLAYED_EVENTS]]
 
     return state
 
@@ -287,8 +298,8 @@ def _draw_plaza(ax: plt.Axes, state: VisualizationState) -> None:
 
     # Cardinal labels
     ax.text(0, 6.7, "N (0°)", ha="center", fontsize=8, color="#64748b")
-    ax.text(-6.3, 2.5, "W (90°)", ha="center", fontsize=8, color="#64748b", rotation=90)
-    ax.text(6.3, 2.5, "E (-70°)", ha="center", fontsize=8, color="#64748b", rotation=-90)
+    ax.text(-6.3, 2.5, "W (85°)", ha="center", fontsize=8, color="#64748b", rotation=90)
+    ax.text(6.3, 2.5, "E (−70°)", ha="center", fontsize=8, color="#64748b", rotation=-90)
 
     # --- Draw attention cones ---
     ux, uy = state.user_position
@@ -560,7 +571,7 @@ def _draw_info_panel(ax: plt.Axes, state: VisualizationState) -> None:
     # Recent events
     if state.events:
         _text("RECENT EVENTS", bold=True, size=9, color="#94a3b8")
-        for evt in state.events[:5]:
+        for evt in state.events[:_MAX_DISPLAYED_EVENTS]:
             _text(f"  {evt[:55]}", color="#cbd5e1", indent=1, size=7)
 
 
@@ -591,6 +602,8 @@ def generate_demo_frames(output_dir: str = ".", angles: Optional[List[float]] = 
     """
     if angles is None:
         angles = [0.0, 15.0, 45.0, 70.0, 85.0, -30.0, -70.0, 0.0]
+
+    _ensure_agg_backend()
 
     saved: List[str] = []
     for i, yaw in enumerate(angles):
