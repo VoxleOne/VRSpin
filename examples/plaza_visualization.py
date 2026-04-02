@@ -217,7 +217,7 @@ def compute_plaza_state(
 
     # SpinStep: quaternion_from_euler — convert headset yaw to quaternion.
     user_quat = quaternion_from_euler(
-        [user_yaw_deg, 0, 0], order="yxz", degrees=True,
+        [user_yaw_deg, 0, 0], order="yxz", degrees=True
     )
     user.set_orientation(user_quat)
 
@@ -237,14 +237,15 @@ def compute_plaza_state(
     )
 
     # SpinStep: QuaternionDepthIterator — traverse the Node tree using
-    # the user's orientation as the rotation step.
+    # the user's orientation as the rotation step.  May yield no results
+    # when the tree is empty or the angle threshold excludes all children.
     try:
         for node in QuaternionDepthIterator(
             plaza.root, user_quat, angle_threshold=np.deg2rad(45.0),
         ):
             state.tree_attended_names.append(node.name)
-    except Exception:
-        pass  # traversal may produce no results; that is fine
+    except StopIteration:
+        pass
 
     # SpinStep: quaternion_distance — per-entity angular distances.
     all_entities = (

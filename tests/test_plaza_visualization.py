@@ -101,8 +101,8 @@ class TestComputePlazaState:
         state = compute_plaza_state(0.0)
         fwd = state.user_forward_vector
         assert len(fwd) == 3
-        # Facing north (0° yaw) the forward vector should point along -Z or +Z
-        length = (fwd[0] ** 2 + fwd[1] ** 2 + fwd[2] ** 2) ** 0.5
+        # Facing north (0° yaw) the forward vector should be a unit vector
+        length = np.linalg.norm(fwd)
         assert abs(length - 1.0) < 0.01  # unit vector
 
     def test_spinstep_tree_traversal_populated(self):
@@ -117,8 +117,8 @@ class TestComputePlazaState:
         state = compute_plaza_state(0.0)
         assert "Fountain" in state.entity_distances_deg
         assert "Elena" in state.entity_distances_deg
-        # Fountain at north should be near 0° when facing north
-        assert state.entity_distances_deg["Fountain"] < 10.0
+        # Fountain at north should be at 0° when facing north
+        assert state.entity_distances_deg["Fountain"] < 1.0
 
     def test_spinstep_relative_spins_populated(self):
         """get_relative_spin produces NPC rotation deltas."""
