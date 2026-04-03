@@ -184,6 +184,7 @@ Registry of `SceneEntity` objects queried against an attention cone each frame.
 | `register_entity(entity)` | Add a `SceneEntity` |
 | `unregister_entity(name)` | Remove by name |
 | `update(user_quat, cone_half_angle, falloff='linear') → AttentionResult` | Query all entities |
+| `get_attended_entities() → list[SceneEntity]` | Return entities from the most recent `update()` that were attended |
 
 ```python
 manager = AttentionManager([fountain, vendor])
@@ -387,7 +388,26 @@ from vrspin import forward_vector_from_quaternion, slerp
 ### `forward_vector_from_quaternion(q) → np.ndarray`
 
 Extract the forward (look) direction from a quaternion.
+Re-exported from `spinstep.utils`.  Uses the `-Z` convention: identity
+quaternion `[0, 0, 0, 1]` returns `[0, 0, -1]`.
+
+### `direction_to_quaternion(direction) → np.ndarray`
+
+Convert a 3D direction vector to an orientation quaternion.
 Re-exported from `spinstep.utils`.
+
+```python
+q = direction_to_quaternion([0, 0, -1])  # identity quaternion
+```
+
+### `angle_between_directions(d1, d2) → float`
+
+Angular distance in radians between two direction vectors.
+Re-exported from `spinstep.utils`.
+
+```python
+angle = angle_between_directions([1, 0, 0], [0, 1, 0])  # π/2
+```
 
 ### `slerp(q1, q2, t) → np.ndarray`
 

@@ -11,7 +11,7 @@ All scene perception and entity interaction is driven by a single input — the 
 quaternion — with no buttons, menus, or mouse clicks required.
 
 The repository is **fully implemented** across all five planned delivery phases.
-107 automated tests pass against the current codebase.
+138 automated tests pass against the current codebase.
 
 ---
 
@@ -163,6 +163,8 @@ from vrspin import (
     AttentionManager,       # scene.py
     AttentionResult,        # scene.py
     forward_vector_from_quaternion,  # spinstep.utils (re-export)
+    direction_to_quaternion,         # spinstep.utils (re-export)
+    angle_between_directions,        # spinstep.utils (re-export)
     slerp,                  # utils.py
 )
 
@@ -181,8 +183,10 @@ from vrspin.multihead import MultiHeadAttention
 | `DiscreteOrientationSet.query_within_angle()` | `AttentionCone.filter_within_cone()` |
 | `batch_quaternion_angle(qs1, qs2, xp)` | `AttentionCone.query_batch()` and `query_batch_with_attenuation()` |
 | `QuaternionDepthIterator` | `VirtualPlaza.tick()` — scene-tree traversal |
-| `forward_vector_from_quaternion(q)` | Re-exported in `vrspin.__init__` |
+| `forward_vector_from_quaternion(q)` | Re-exported in `vrspin.__init__`; `AttentionCone.get_forward_vector()` aligned to `-Z` convention |
 | `quaternion_from_euler(angles)` | Used in tests and demo scripts |
+| `direction_to_quaternion(direction)` | Re-exported in `vrspin.__init__` |
+| `angle_between_directions(d1, d2)` | Re-exported in `vrspin.__init__` |
 | `get_relative_spin(nf, nt)` | Available (spec-listed) |
 | `rotate_quaternion(q, step)` | Available (spec-listed) |
 
@@ -191,12 +195,13 @@ from vrspin.multihead import MultiHeadAttention
 ## Test Coverage
 
 ```
-tests/test_vrspin.py    — 59 tests: AttentionCone, VRUser, entities, NPC, VirtualPlaza
-tests/test_scene.py     — 24 tests: SceneEntity, AttentionManager, AttentionResult
-tests/test_npc_agent.py — 14 tests: NPCAttentionAgent
-tests/test_multihead.py — 10 tests: MultiHeadAttention, merge_results
+tests/test_vrspin.py              — 59 tests: AttentionCone, VRUser, entities, NPC, VirtualPlaza
+tests/test_scene.py               — 16 tests: SceneEntity, AttentionManager, AttentionResult
+tests/test_npc_agent.py           — 16 tests: NPCAttentionAgent, slerp, utility re-exports
+tests/test_multihead.py           — 10 tests: MultiHeadAttention, merge_results
+tests/test_plaza_visualization.py — 27 tests: visualization logic, rendering
 
-Total: 107 tests — all passing
+Total: 138 tests — all passing
 ```
 
 ---
@@ -205,12 +210,14 @@ Total: 107 tests — all passing
 
 | Item | Spec Requirement | Status |
 |---|---|---|
-| `direction_to_quaternion()` in utils | Listed in §04 | Not individually exported from `vrspin` (available via `spinstep.utils`) |
-| `angle_between_directions()` in utils | Listed in §04 | Not individually exported from `vrspin` (available via `spinstep.utils`) |
+| `direction_to_quaternion()` in utils | Listed in §04 | ✅ Now re-exported from `vrspin` |
+| `angle_between_directions()` in utils | Listed in §04 | ✅ Now re-exported from `vrspin` |
+| `AttentionManager.get_attended_entities()` | Listed in architecture.yaml | ✅ Now implemented |
+| `AttentionCone.get_forward_vector()` convention | Must match SpinStep `-Z` forward | ✅ Now aligned with SpinStep |
 | C-extension / native plugin (Option B) | §08 mentions as production path | Not implemented (prototype-only scope) |
 | `examples/vr_plaza_demo.py` | Listed in Phase 4 | Covered by `demo_look_and_interact.py` at repo root |
 
-None of the above gaps affect the primary demo use-case or test suite.
+The remaining gaps are out-of-scope for the current prototype and do not affect the primary demo use-case or test suite.
 
 ---
 
