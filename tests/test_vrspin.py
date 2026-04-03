@@ -78,7 +78,7 @@ class TestAttentionCone:
     def test_get_forward_vector_identity(self):
         cone = AttentionCone(IDENTITY, half_angle_rad=np.deg2rad(45))
         fwd = cone.get_forward_vector()
-        assert np.allclose(fwd, [0.0, 0.0, 1.0], atol=1e-6)
+        assert np.allclose(fwd, [0.0, 0.0, -1.0], atol=1e-6)
 
     def test_angular_distance_identity(self):
         cone = AttentionCone(IDENTITY, half_angle_rad=np.deg2rad(45))
@@ -151,7 +151,7 @@ class TestVRUser:
         user.rotate_by(delta)
         # Two 30° steps should produce ~60°
         fwd = user.get_forward_vector()
-        expected = R.from_euler("y", 60.0, degrees=True).apply([0, 0, 1])
+        expected = R.from_euler("y", 60.0, degrees=True).apply([0, 0, -1])
         assert np.allclose(fwd, expected, atol=1e-5)
 
     def test_cone_for_valid_modalities(self):

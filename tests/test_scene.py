@@ -142,3 +142,16 @@ class TestAttentionManager:
         ]
         mgr = AttentionManager(entities)
         assert len(mgr.entities) == 2
+
+    def test_get_attended_entities_after_update(self):
+        close = SceneEntity("close", _y_rot(5))
+        far = SceneEntity("far", _y_rot(90))
+        mgr = AttentionManager([close, far])
+        mgr.update(IDENTITY, cone_half_angle=np.radians(45))
+        attended = mgr.get_attended_entities()
+        assert len(attended) == 1
+        assert attended[0].name == "close"
+
+    def test_get_attended_entities_before_update(self):
+        mgr = AttentionManager()
+        assert mgr.get_attended_entities() == []

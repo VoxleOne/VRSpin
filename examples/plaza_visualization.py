@@ -177,7 +177,7 @@ class VisualizationState:
     tree_attended_names: List[str] = field(default_factory=list)
     entity_distances_deg: Dict[str, float] = field(default_factory=dict)
     npc_relative_spins_deg: Dict[str, float] = field(default_factory=dict)
-    user_forward_vector: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+    user_forward_vector: Tuple[float, float, float] = (0.0, 0.0, -1.0)
 
 
 # ---------------------------------------------------------------------------

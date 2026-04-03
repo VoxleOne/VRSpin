@@ -128,6 +128,7 @@ class AttentionManager:
 
     def __init__(self, entities: Optional[List[SceneEntity]] = None) -> None:
         self._entities: Dict[str, SceneEntity] = {}
+        self._last_result: Optional[AttentionResult] = None
         for ent in (entities or []):
             self.register_entity(ent)
 
@@ -189,4 +190,18 @@ class AttentionManager:
             else:
                 unattended.append(entity)
         attended.sort(key=lambda t: t[1], reverse=True)
-        return AttentionResult(attended=attended, unattended=unattended)
+        self._last_result = AttentionResult(attended=attended, unattended=unattended)
+        return self._last_result
+
+    def get_attended_entities(self) -> List[SceneEntity]:
+        """Return the entities from the most recent :meth:`update` that were attended.
+
+        Returns:
+            List of :class:`SceneEntity` objects that fell inside the
+            attention cone on the last :meth:`update` call, sorted by
+            descending strength.  Returns an empty list if :meth:`update`
+            has not yet been called.
+        """
+        if self._last_result is None:
+            return []
+        return [entity for entity, _ in self._last_result.attended]
