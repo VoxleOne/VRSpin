@@ -179,26 +179,59 @@ relationships:
 
 bridge_protocol:
 
-  transport: "WebSocket"
-  encoding: "JSON"
+  # Option A: WebSocket (prototyping)
+  websocket:
+    transport: "WebSocket"
+    encoding: "JSON"
+    latency: "~2-5ms on localhost"
 
-  messages:
+    messages:
 
-    - type: "update_user_pose"
-      direction: "engine_to_python"
-      payload:
-        position: Vec3
-        orientation: Quaternion
+      - type: "update_user_pose"
+        direction: "engine_to_python"
+        payload:
+          position: Vec3
+          orientation: Quaternion
 
-    - type: "update_scene_entities"
-      direction: "engine_to_python"
-      payload:
-        entities: SceneEntity[]
+      - type: "update_scene_entities"
+        direction: "engine_to_python"
+        payload:
+          entities: SceneEntity[]
 
-    - type: "attention_results"
-      direction: "python_to_engine"
-      payload:
-        results: AttentionResult[]
+      - type: "attention_results"
+        direction: "python_to_engine"
+        payload:
+          results: AttentionResult[]
+
+  # Option B: Native C library (production)
+  native:
+    transport: "C API (ctypes / P/Invoke / dlopen)"
+    encoding: "binary (double arrays)"
+    latency: "<0.1ms"
+    library: "vrspin/native/libvrspin_native.so"
+    header: "vrspin/native/vrspin_native.h"
+
+    functions:
+      - name: vrspin_cone_create
+        input: [orientation, half_angle, falloff]
+        output: "opaque cone handle"
+
+      - name: vrspin_cone_contains
+        input: [cone_handle, target_quaternion]
+        output: "boolean (int)"
+
+      - name: vrspin_cone_attenuation
+        input: [cone_handle, target_quaternion]
+        output: "float [0, 1]"
+
+      - name: vrspin_process_frame
+        input: [user_quaternion, entity_orientations, num_entities, visual_half_angle, audio_half_angle]
+        output: [visual_strengths, audio_gains, visual_attended]
+
+    bindings:
+      python: "vrspin/native_bridge.py (ctypes)"
+      unity: "examples/unity/VRSpinNative.cs (P/Invoke)"
+      unreal: "examples/unreal/VRSpinNative.h (C++ RAII)"
 
 # =========================================================
 # EXECUTION MODEL

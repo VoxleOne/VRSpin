@@ -20,3 +20,8 @@ env/
 # IDE
 .vscode/
 .idea/
+
+# Native library build artifacts
+*.so
+*.dylib
+*.dll
