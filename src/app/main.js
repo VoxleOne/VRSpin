@@ -5,19 +5,43 @@ import { Mesh } from "../scene/Mesh.js"
 import { BoxGeometry } from "../geometry/BoxGeometry.js"
 import { ShaderProgram } from "../renderer/ShaderProgram.js"
 
-import vs from "../../shaders/basic.vert.glsl"
-import fs from "../../shaders/basic.frag.glsl"
+const vertexShaderSource = `
+attribute vec3 position;
+
+void main() {
+  gl_Position = vec4(position, 1.0);
+}
+`
+
+const fragmentShaderSource = `
+precision mediump float;
+
+void main() {
+  gl_FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+}
+`
 
 const canvas = document.querySelector("canvas")
 if (!canvas) {
   throw new Error("No <canvas> element found in the document")
 }
-const gl = createGLContext(canvas)
 
+canvas.width = canvas.clientWidth
+canvas.height = canvas.clientHeight
+
+const gl = createGLContext(canvas)
 const renderer = new Renderer(gl)
+renderer.setSize(canvas.width, canvas.height)
+
+window.addEventListener("resize", () => {
+  canvas.width = canvas.clientWidth
+  canvas.height = canvas.clientHeight
+  renderer.setSize(canvas.width, canvas.height)
+})
+
 const scene = new Scene()
 
-const shader = new ShaderProgram(gl, vs, fs)
+const shader = new ShaderProgram(gl, vertexShaderSource, fragmentShaderSource)
 const geometry = new BoxGeometry()
 
 const mesh = new Mesh(geometry, shader)

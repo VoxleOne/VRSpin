@@ -1,0 +1,9 @@
+{
+  "name": "vrspin-webgl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VRSpin WebGL rendering module",
+  "scripts": {
+    "dev": "npx serve@latest ."
+  }
+}
