@@ -22,6 +22,7 @@ export class Mesh {
     gl.enableVertexAttribArray(posLoc)
     gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0)
 
-    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    const vertexCount = this.geometry.vertices.length / 3
+    gl.drawArrays(gl.TRIANGLES, 0, vertexCount)
   }
 }

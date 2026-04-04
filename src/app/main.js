@@ -9,6 +9,9 @@ import vs from "../../shaders/basic.vert.glsl"
 import fs from "../../shaders/basic.frag.glsl"
 
 const canvas = document.querySelector("canvas")
+if (!canvas) {
+  throw new Error("No <canvas> element found in the document")
+}
 const gl = createGLContext(canvas)
 
 const renderer = new Renderer(gl)

@@ -1,6 +1,16 @@
 export class Camera {
   constructor() {
-    this.projectionMatrix = mat4.create()
-    this.viewMatrix = mat4.create()
+    this.projectionMatrix = new Float32Array([
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1
+    ])
+    this.viewMatrix = new Float32Array([
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1
+    ])
   }
 }
