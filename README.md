@@ -125,19 +125,34 @@ python -m pytest tests/
 ```
 vrspin/
   __init__.py        — public API exports
+  architecture.yaml  — architectural specification
   cone.py            — AttentionCone: quaternion orientation + half-angle membership test
   user.py            — VRUser: head orientation + 3 multi-modal attention cones
   npc.py             — NPC: SpinStep Node + perception cone + SLERP attention machine
   entities.py        — InteractiveObject, AudioSource, KnowledgePanel, PanelPage
+  scene.py           — SceneEntity, AttentionManager, AttentionResult
+  multihead.py       — MultiHeadAttention: multi-modal cone queries
   plaza.py           — VirtualPlaza: scene-tree + simulation tick engine
+  utils.py           — slerp and helper functions
 demo_look_and_interact.py  — runnable step-by-step interaction scenario
 examples/
   plaza_visualization.py       — interactive top-down attention-cone visualization
   plaza_visualization_README.md — documentation for the visualization demo
   vr_bridge_server.py          — WebSocket bridge for Unity/Unreal integration
+  vr_bridge_server_README.md   — documentation for the bridge server
+  unity/SpinStepClient.cs      — Unity C# client sketch
 tests/
-  test_vrspin.py               — 59 unit tests covering all modules
-  test_plaza_visualization.py  — 22 tests for visualization logic
+  test_vrspin.py               — 59 unit tests covering core modules
+  test_scene.py                — 16 tests for scene layer
+  test_npc_agent.py            — 16 tests for NPC agent and utilities
+  test_multihead.py            — 10 tests for multi-head attention
+  test_plaza_visualization.py  — 27 tests for visualization logic
+docs/
+  09-api-reference.md          — complete API reference
+  10-vr-demo.md                — VR demo guide
+  capability-report.md         — architecture assessment
+benchmark/
+  vr_attention_benchmark.py    — performance benchmarks
 ```
 
 ---

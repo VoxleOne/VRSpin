@@ -267,13 +267,15 @@ class AttentionCone:
     def get_forward_vector(self) -> np.ndarray:
         """Return the 3-D unit vector this cone is pointing toward.
 
-        The local ``+Z`` axis ``[0, 0, 1]`` is rotated by the cone's
-        quaternion orientation to produce the world-space forward direction.
+        The local ``-Z`` axis ``[0, 0, -1]`` is rotated by the cone's
+        quaternion orientation to produce the world-space forward direction,
+        matching SpinStep's :func:`~spinstep.utils.forward_vector_from_quaternion`
+        convention.
 
         Returns:
             NumPy array of shape ``(3,)``.
         """
-        return R.from_quat(self.orientation).apply(np.array([0.0, 0.0, 1.0]))
+        return R.from_quat(self.orientation).apply(np.array([0.0, 0.0, -1.0]))
 
     def angular_distance_to(self, target_quat: ArrayLike) -> float:
         """Return the angular distance in radians between this cone and *target_quat*.

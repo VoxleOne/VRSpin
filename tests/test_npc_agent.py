@@ -55,6 +55,21 @@ class TestForwardVector:
 
 
 # ---------------------------------------------------------------------------
+# Utility re-exports
+# ---------------------------------------------------------------------------
+
+
+class TestUtilityReexports:
+    def test_direction_to_quaternion_available(self):
+        from vrspin import direction_to_quaternion
+        q = direction_to_quaternion([0, 0, -1])
+        assert len(q) == 4
+        assert abs(np.linalg.norm(q) - 1.0) < 1e-6
+
+    def test_angle_between_directions_available(self):
+        from vrspin import angle_between_directions
+        angle = angle_between_directions([1, 0, 0], [0, 1, 0])
+        assert abs(angle - np.pi / 2) < 1e-6
 # AttentionCone — new API methods
 # ---------------------------------------------------------------------------
 

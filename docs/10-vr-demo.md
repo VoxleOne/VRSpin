@@ -169,11 +169,12 @@ All three are updated atomically when `user.set_orientation(q)` is called.
 python -m pytest tests/ -v
 ```
 
-107 tests across:
+138 tests across:
 - `tests/test_vrspin.py` — AttentionCone, VRUser, entities, NPC, VirtualPlaza
 - `tests/test_scene.py` — SceneEntity, AttentionManager, AttentionResult
-- `tests/test_npc_agent.py` — NPCAttentionAgent
+- `tests/test_npc_agent.py` — NPCAttentionAgent, slerp, utility re-exports
 - `tests/test_multihead.py` — MultiHeadAttention, merge_results
+- `tests/test_plaza_visualization.py` — visualization logic, rendering
 
 ---
 

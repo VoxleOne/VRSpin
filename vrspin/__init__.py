@@ -7,7 +7,8 @@ Public API::
     from vrspin import VirtualPlaza, PlazaEvent
     from vrspin import SceneEntity, AttentionManager, AttentionResult
     from vrspin import NPCAttentionAgent
-    from vrspin import forward_vector_from_quaternion, slerp
+    from vrspin import forward_vector_from_quaternion, direction_to_quaternion
+    from vrspin import angle_between_directions, slerp
 """
 
 from .cone import AttentionCone
@@ -18,7 +19,11 @@ from .plaza import VirtualPlaza, PlazaEvent
 from .scene import SceneEntity, AttentionManager, AttentionResult
 
 # Re-export utility functions from SpinStep for convenience.
-from spinstep.utils import forward_vector_from_quaternion
+from spinstep.utils import (
+    forward_vector_from_quaternion,
+    direction_to_quaternion,
+    angle_between_directions,
+)
 
 # slerp is not provided by SpinStep — implemented locally.
 from .utils import slerp
@@ -42,6 +47,8 @@ __all__ = [
     "NPCAttentionAgent",
     # Utility functions
     "forward_vector_from_quaternion",
+    "direction_to_quaternion",
+    "angle_between_directions",
     "slerp",
 ]
 
