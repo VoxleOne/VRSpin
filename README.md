@@ -7,9 +7,9 @@
 
 ## Concept
 
-VRSpin is a Python simulation of an **orientation-first VR experience**.  
-The entire scene reacts to a single input: **where you're looking** (head quaternion).  
-No menus, no clicks — just natural turning and looking.
+VRSpin is a Python simulation of an **orientation-first VR experience**.
+
+The entire scene reacts to a single input: **where you're looking** (head quaternion). No menus, no clicks.
 
 The demo models a small virtual plaza (Horizon-Worlds style) populated with NPCs,
 interactive objects, spatial audio sources, and floating knowledge panels.  
