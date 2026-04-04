@@ -263,7 +263,9 @@ produces results matching the pure-Python `AttentionCone` across all falloff mod
 The VRSpin repository **fully satisfies** the architectural specification across all five
 delivery phases. All core SpinStep primitives described in the instructions are wired into
 the VRSpin layer. The public API matches the specified interface. 145 automated tests pass
-(172 including native bridge tests).
+(excluding matplotlib-dependent visualization tests). An additional 34 native bridge tests
+validate the C extension against the Python implementation for a total of 172 tests
+(including visualization tests).
 The VR engine bridge is working and the demo runs end-to-end.
 The production-grade native C library (Option B) is implemented with Unity and Unreal
 integration bindings.

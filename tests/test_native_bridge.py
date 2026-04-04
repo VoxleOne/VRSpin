@@ -161,8 +161,10 @@ class TestNativeAttentionConeContains:
         outside = np.array([0.0, np.sin(angle * 1.01 / 2), 0.0, np.cos(angle * 1.01 / 2)])
         native = NativeAttentionCone(IDENTITY, half_angle=angle)
         py = AttentionCone(IDENTITY, half_angle=angle)
-        assert native.contains(inside) == py.contains(inside) is True
-        assert native.contains(outside) == py.contains(outside) is False
+        assert native.contains(inside) is True
+        assert py.contains(inside) is True
+        assert native.contains(outside) is False
+        assert py.contains(outside) is False
 
     def test_is_in_cone_alias(self) -> None:
         native = NativeAttentionCone(IDENTITY, half_angle=HALF_ANGLE_90)

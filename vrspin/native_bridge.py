@@ -336,7 +336,7 @@ class NativeAttentionCone:
     ) -> None:
         self._lib = _get_lib()
         falloff_int = _FALLOFF_MAP.get(falloff)
-        if falloff_int is None:
+        if falloff not in _FALLOFF_MAP:
             raise ValueError(
                 f"falloff must be one of {set(_FALLOFF_MAP)!r}, got {falloff!r}"
             )
@@ -350,6 +350,7 @@ class NativeAttentionCone:
 
         self.half_angle = half_angle
         self.falloff = falloff
+        self._orientation = np.asarray(orientation, dtype=np.float64).copy()
 
     def __del__(self) -> None:
         if hasattr(self, "_handle") and self._handle and hasattr(self, "_lib"):
@@ -365,6 +366,7 @@ class NativeAttentionCone:
             new_quat: New centre quaternion ``[x, y, z, w]``.
         """
         self._lib.vrspin_cone_update_origin(self._handle, _to_c4(new_quat))
+        self._orientation = np.asarray(new_quat, dtype=np.float64).copy()
 
     update_orientation = update_origin  # alias
 
@@ -442,16 +444,7 @@ class NativeAttentionCone:
         Returns:
             NumPy array of shape ``(3,)``.
         """
-        # Re-read orientation from the cone handle by computing forward vector
-        # of the identity and then using the C function directly.
-        # We need the current orientation — but we only store the handle.
-        # Workaround: compute via the library.
-        # Since we can't read the orientation from the opaque handle,
-        # we track it on the Python side as well.
-        raise NotImplementedError(
-            "get_forward_vector() is not yet supported on NativeAttentionCone. "
-            "Use native_forward_vector(quat) instead."
-        )
+        return native_forward_vector(self._orientation)
 
     def __repr__(self) -> str:
         return (
