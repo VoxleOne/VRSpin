@@ -14,7 +14,7 @@ The entire scene reacts to a single input: **where you're looking** (head quater
 The demo models a small virtual plaza (Horizon-Worlds style) populated with NPCs,
 interactive objects, spatial audio sources, and floating knowledge panels.
 
-Every entity is anode in $S_sup{3}$ . Every perceivable thing in the scene is guarded by a **SpinStep attention cone**.
+Every entity is a node in $S_sup{3}$ . Every perceivable thing in the scene is guarded by a **SpinStep attention cone**.
 
 ---
 
