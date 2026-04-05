@@ -30,7 +30,7 @@ Plaza (root Node)
 
 ---
 
-## How SpinStep Powers the Demo
+## What Powers this Demo
 
 > **Orientation space, not coordinate space.**  
 > Unlike conventional scene-graph systems — which place entities in ℝ³ coordinate
