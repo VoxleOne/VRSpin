@@ -33,11 +33,11 @@ Plaza (root Node)
 ## What Powers this Demo
 
 > **Orientation space, not coordinate space.**  
-> Unlike conventional scene-graph systems — which place entities in ℝ³ coordinate
-> space using position vectors and transform matrices — SpinStep represents every
+> Unlike conventional scene-graph systems, which place entities in ℝ³ coordinate
+> space using position vectors and transform matrices, SpinStep represents every
 > node as a **unit quaternion on S³** (the 3-sphere of rotations). A SpinStep
 > `Node` carries only a name, an orientation quaternion `[x, y, z, w]`, and its
-> children — no position, no scale, no transform hierarchy. Traversal, proximity,
+> children. That means no position, no scale, no transform hierarchy. Traversal, proximity,
 > and visibility are all determined by **angular distance between orientations**,
 > not Euclidean distance between points. This is a core design feature of SpinStep
 > and is what makes orientation-driven queries (attention cones, gaze matching,
