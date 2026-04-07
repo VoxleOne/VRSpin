@@ -1,55 +1,62 @@
 import { createGLContext } from "../core/GLContext.js"
 import { Renderer } from "../core/Renderer.js"
 import { Scene } from "../scene/Scene.js"
+import { Camera } from "../scene/Camera.js"
 import { Mesh } from "../scene/Mesh.js"
-import { BoxGeometry } from "../geometry/BoxGeometry.js"
+import { TriangleGeometry } from "../geometry/TriangleGeometry.js"
 import { ShaderProgram } from "../renderer/ShaderProgram.js"
 
-const vertexShaderSource = `
-attribute vec3 position;
-
-void main() {
-  gl_Position = vec4(position, 1.0);
-}
-`
-
-const fragmentShaderSource = `
-precision mediump float;
-
-void main() {
-  gl_FragColor = vec4(1.0, 0.5, 0.2, 1.0);
-}
-`
-
-const canvas = document.querySelector("canvas")
-if (!canvas) {
-  throw new Error("No <canvas> element found in the document")
+async function loadShader(url) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to load shader: ${url}`)
+  }
+  return response.text()
 }
 
-canvas.width = canvas.clientWidth
-canvas.height = canvas.clientHeight
+async function main() {
+  const canvas = document.querySelector("canvas")
+  if (!canvas) {
+    throw new Error("No <canvas> element found in the document")
+  }
 
-const gl = createGLContext(canvas)
-const renderer = new Renderer(gl)
-renderer.setSize(canvas.width, canvas.height)
-
-window.addEventListener("resize", () => {
   canvas.width = canvas.clientWidth
   canvas.height = canvas.clientHeight
+
+  if (canvas.width === 0 || canvas.height === 0) {
+    throw new Error("Canvas has zero size — check CSS or layout")
+  }
+
+  const [vertexShaderSource, fragmentShaderSource] = await Promise.all([
+    loadShader("shaders/basic.vert.glsl"),
+    loadShader("shaders/basic.frag.glsl")
+  ])
+
+  const gl = createGLContext(canvas)
+  const renderer = new Renderer(gl)
   renderer.setSize(canvas.width, canvas.height)
-})
 
-const scene = new Scene()
+  window.addEventListener("resize", () => {
+    canvas.width = canvas.clientWidth
+    canvas.height = canvas.clientHeight
+    renderer.setSize(canvas.width, canvas.height)
+  })
 
-const shader = new ShaderProgram(gl, vertexShaderSource, fragmentShaderSource)
-const geometry = new BoxGeometry()
+  const scene = new Scene()
+  const camera = new Camera()
 
-const mesh = new Mesh(geometry, shader)
-scene.add(mesh)
+  const shader = new ShaderProgram(gl, vertexShaderSource, fragmentShaderSource)
+  const geometry = new TriangleGeometry()
 
-function loop() {
-  renderer.render(scene)
-  requestAnimationFrame(loop)
+  const mesh = new Mesh(geometry, shader)
+  scene.add(mesh)
+
+  function loop() {
+    renderer.render(scene, camera)
+    requestAnimationFrame(loop)
+  }
+
+  loop()
 }
 
-loop()
+main()

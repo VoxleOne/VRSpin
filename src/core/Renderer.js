@@ -1,6 +1,7 @@
 export class Renderer {
   constructor(gl) {
     this.gl = gl
+    gl.enable(gl.DEPTH_TEST)
   }
 
   setSize(width, height) {

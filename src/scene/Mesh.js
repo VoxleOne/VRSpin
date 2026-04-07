@@ -1,4 +1,6 @@
-export class Mesh {
+import { Object3D } from "./Object3D.js"
+
+export class Mesh extends Object3D {
   constructor(geometry, shader) {
     if (!geometry || !geometry.vertices) {
       throw new Error("Mesh requires a geometry with vertices")
@@ -7,6 +9,7 @@ export class Mesh {
       throw new Error("Mesh requires a shader with a use() method")
     }
 
+    super()
     this.geometry = geometry
     this.shader = shader
     this.buffer = null
@@ -18,7 +21,7 @@ export class Mesh {
     gl.bufferData(gl.ARRAY_BUFFER, this.geometry.vertices, gl.STATIC_DRAW)
   }
 
-  draw(gl) {
+  draw(gl, camera) {
     if (!this.buffer) this.init(gl)
 
     this.shader.use()

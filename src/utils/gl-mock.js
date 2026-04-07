@@ -17,6 +17,7 @@ export function createMockGL() {
     TRIANGLES: 0x0004,
     COLOR_BUFFER_BIT: 0x4000,
     DEPTH_BUFFER_BIT: 0x0100,
+    DEPTH_TEST: 0x0B71,
     VERTEX_SHADER: 0x8B31,
     FRAGMENT_SHADER: 0x8B30,
     COMPILE_STATUS: 0x8B81,
@@ -68,6 +69,10 @@ export function createMockGL() {
 
     clear(mask) {
       record("clear", arguments)
+    },
+
+    enable(cap) {
+      record("enable", arguments)
     },
 
     viewport(x, y, w, h) {
