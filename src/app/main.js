@@ -24,7 +24,7 @@ async function main() {
   canvas.height = canvas.clientHeight
 
   if (canvas.width === 0 || canvas.height === 0) {
-    throw new Error("Canvas has zero size — check CSS or layout")
+    throw new Error("Canvas has zero size - check CSS or layout")
   }
 
   const [vertexShaderSource, fragmentShaderSource] = await Promise.all([
@@ -59,4 +59,6 @@ async function main() {
   loop()
 }
 
-main()
+main().catch(err => {
+  console.error("WebGL initialization failed:", err)
+})
