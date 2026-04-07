@@ -1,7 +1,7 @@
 # VRSpin — "Look & Interact" VR Demo
 
 > **Attention drives perception and interaction.**  
-> Objects, audio, NPCs, and virtual knowledge appear based on **orientation cones** — powered by [SpinStep](https://github.com/VoxleOne/SpinStep).
+> Objects, audio, NPCs, and virtual knowledge appear based on **orientation cones** - powered by [SpinStep](https://github.com/VoxleOne/SpinStep).
 
 ---
 
