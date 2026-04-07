@@ -243,7 +243,8 @@ export class PlazaRenderer {
     gl.enable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    gl.clearColor(0.05, 0.05, 0.12, 1.0)  // dark blue-black
+    const CLEAR_COLOR = [0.05, 0.05, 0.12, 1.0] // dark blue-black
+    gl.clearColor(...CLEAR_COLOR)
   }
 
   /**
@@ -304,8 +305,9 @@ export class PlazaRenderer {
    * @param {object[]} nodes - array of PlazaNodes
    * @param {number[]} headQuat - [x, y, z, w]
    * @param {number} sphereRadius - distance of objects from camera
+   * @param {number} [time] - current time in ms (defaults to performance.now())
    */
-  render(nodes, headQuat, sphereRadius = 5) {
+  render(nodes, headQuat, sphereRadius = 5, time = performance.now()) {
     const gl = this.gl
     this.resize()
 
@@ -338,7 +340,7 @@ export class PlazaRenderer {
 
       // Scale for activated state (pulse effect)
       if (node.spinState === SpinState.ACTIVATED) {
-        const pulse = 1.0 + 0.1 * Math.sin(Date.now() * 0.005)
+        const pulse = 1.0 + 0.1 * Math.sin(time * 0.005)
         model[0] = pulse; model[5] = pulse; model[10] = pulse
       }
 

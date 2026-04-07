@@ -77,10 +77,13 @@ function updateHUD(headQuat, nodes) {
 // Frame loop
 // ---------------------------------------------------------------------------
 
+/** Maximum frame delta (seconds) to prevent physics jumps on tab-switch. */
+const MAX_DELTA_TIME = 0.1
+
 let lastTime = performance.now()
 
 function loop(now) {
-  const deltaTime = Math.min((now - lastTime) / 1000, 0.1) // cap at 100ms
+  const deltaTime = Math.min((now - lastTime) / 1000, MAX_DELTA_TIME)
   lastTime = now
 
   // 1. Input — get head quaternion

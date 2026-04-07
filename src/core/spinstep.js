@@ -178,6 +178,13 @@ export class SpinNode {
 // QuaternionDepthIterator
 // ---------------------------------------------------------------------------
 
+/**
+ * When no explicit angle_threshold is given, the threshold is set to
+ * this fraction of the rotation step's angle. This mirrors the Python
+ * QuaternionDepthIterator which uses 30 % of the step angle as the
+ * default threshold so that only children closely aligned with the
+ * rotated state are visited.
+ */
 const DEFAULT_DYNAMIC_THRESHOLD_FACTOR = 0.3
 
 /**

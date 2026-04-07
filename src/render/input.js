@@ -24,8 +24,10 @@ export function createInputHandler(canvas) {
   let lastX = 0
   let lastY = 0
 
+  /** Mouse drag sensitivity (degrees per pixel). */
   const SENSITIVITY = 0.3
-  const KEY_SPEED = 2.0  // degrees per frame
+  /** Keyboard rotation speed (degrees per frame). */
+  const KEY_SPEED = 2.0
 
   // Track pressed keys
   const keys = new Set()
