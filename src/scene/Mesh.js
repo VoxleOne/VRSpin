@@ -1,5 +1,12 @@
 export class Mesh {
   constructor(geometry, shader) {
+    if (!geometry || !geometry.vertices) {
+      throw new Error("Mesh requires a geometry with vertices")
+    }
+    if (!shader || typeof shader.use !== "function") {
+      throw new Error("Mesh requires a shader with a use() method")
+    }
+
     this.geometry = geometry
     this.shader = shader
     this.buffer = null
@@ -24,5 +31,12 @@ export class Mesh {
 
     const vertexCount = this.geometry.vertices.length / 3
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount)
+  }
+
+  dispose(gl) {
+    if (this.buffer) {
+      gl.deleteBuffer(this.buffer)
+      this.buffer = null
+    }
   }
 }

@@ -199,9 +199,13 @@ tests/test_vrspin.py              — 59 tests: AttentionCone, VRUser, entities,
 tests/test_scene.py               — 16 tests: SceneEntity, AttentionManager, AttentionResult
 tests/test_npc_agent.py           — 16 tests: NPCAttentionAgent, slerp, utility re-exports
 tests/test_multihead.py           — 10 tests: MultiHeadAttention, merge_results
-tests/test_plaza_visualization.py — 27 tests: visualization logic, rendering
+tests/test_plaza_visualization.py — 27 tests: visualization logic, rendering (requires matplotlib)
 
-Total: 138 tests — all passing
+Python total: 111 tests passing (128 with matplotlib)
+
+src/scene/Mesh.test.js            — 20 tests: Mesh constructor, init, draw, dispose
+
+WebGL total: 20 tests passing (run with `node --test src/**/*.test.js`)
 ```
 
 ---
