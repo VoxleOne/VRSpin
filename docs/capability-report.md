@@ -205,7 +205,7 @@ Python total: 111 tests passing (128 with matplotlib)
 
 src/scene/Mesh.test.js            — 20 tests: Mesh constructor, init, draw, dispose
 
-WebGL total: 20 tests passing (run with `node --test src/**/*.test.js`)
+WebGL total: 20 tests passing (run with `npm test`)
 ```
 
 ---
