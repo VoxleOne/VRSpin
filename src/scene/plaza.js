@@ -37,7 +37,9 @@ export function buildPlazaScene() {
     entityType: "object",
     metadata: {
       description: "A cascading stone fountain at the plaza centre.",
-      color: [0.4, 0.6, 0.9],  // blue-ish
+      color: [0.35, 0.55, 0.85],  // blue-stone
+      renderRadius: 5,
+      renderYOffset: 0,
     },
   })
 
@@ -47,7 +49,9 @@ export function buildPlazaScene() {
     entityType: "object",
     metadata: {
       description: "A colourful merchant stall selling VR goods.",
-      color: [0.9, 0.6, 0.2],  // orange
+      color: [0.85, 0.55, 0.2],  // warm orange-brown
+      renderRadius: 5,
+      renderYOffset: 0,
     },
   })
 
@@ -59,7 +63,9 @@ export function buildPlazaScene() {
       greeting: "Welcome to the plaza! The fountain has been here for ages.",
       perceptionHalfAngle: 120 * Math.PI / 180,
       slerpSpeed: 0.5,
-      color: [0.8, 0.3, 0.5],  // pink
+      color: [0.75, 0.3, 0.5],  // rose pink
+      renderRadius: 4,           // closer than objects
+      renderYOffset: 0,
     },
   })
 
@@ -71,7 +77,9 @@ export function buildPlazaScene() {
       greeting: "Step right up! Best wares in the metaverse!",
       perceptionHalfAngle: 100 * Math.PI / 180,
       slerpSpeed: 0.5,
-      color: [0.3, 0.8, 0.4],  // green
+      color: [0.3, 0.75, 0.4],  // merchant green
+      renderRadius: 4,           // closer than objects
+      renderYOffset: 0,
     },
   })
 
@@ -82,6 +90,8 @@ export function buildPlazaScene() {
     metadata: {
       content: "soft water sounds",
       baseVolume: 0.7,
+      renderRadius: 5,
+      renderYOffset: -0.5,       // ground level
     },
   })
 
@@ -92,6 +102,8 @@ export function buildPlazaScene() {
     metadata: {
       content: "lively merchant tune",
       baseVolume: 0.9,
+      renderRadius: 5,
+      renderYOffset: -0.5,       // ground level
     },
   })
 
@@ -113,7 +125,9 @@ export function buildPlazaScene() {
         },
       ],
       currentPage: 0,
-      color: [0.2, 0.5, 0.9],  // blue
+      color: [0.15, 0.4, 0.85],  // deep blue
+      renderRadius: 6,            // farther — billboard distance
+      renderYOffset: 1.0,         // elevated — floating display
     },
   })
 
@@ -130,7 +144,9 @@ export function buildPlazaScene() {
         },
       ],
       currentPage: 0,
-      color: [0.9, 0.4, 0.9],  // purple
+      color: [0.85, 0.35, 0.85],  // purple
+      renderRadius: 6,             // farther — billboard distance
+      renderYOffset: 1.0,          // elevated — floating display
     },
   })
 
