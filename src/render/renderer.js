@@ -1,9 +1,12 @@
 /**
- * WebGL renderer with projection/view matrix support and SpinState-based rendering.
+ * WebGL renderer with Blinn-Phong lighting, materials, and fog.
  *
- * Renders PlazaNodes onto a sphere around the camera. Visibility and opacity
- * are driven by each node's SpinState (idle → invisible, perceived → faint,
- * focused → full, activated → bright).
+ * Renders PlazaNodes onto a sphere around the camera with per-entity
+ * materials and SpinState-driven visibility. Includes a ground plane
+ * for spatial anchoring and distance fog for atmosphere.
+ *
+ * Lighting: 2-light Blinn-Phong (key + fill) with hemisphere ambient,
+ * per-entity specular/emissive/rim material, and linear distance fog.
  *
  * Camera stays at origin; orientation is set from the head quaternion.
  *
@@ -14,6 +17,13 @@ import { createGLContext } from "../core/GLContext.js"
 import { SpinState } from "../core/perception.js"
 import { quatConjugate } from "../core/spinstep.js"
 import { orientationToPosition } from "../core/node.js"
+import {
+  VERTEX_STRIDE, VERTEX_STRIDE_BYTES, POSITION_OFFSET, NORMAL_OFFSET,
+  makeFountainGeometry, makeMarketStandGeometry, makeNPCGeometry,
+  makeKnowledgePanelGeometry, makeAudioMarkerGeometry,
+  makeBoxGeometry, makeGroundPlaneGeometry,
+} from "./geometry.js"
+import { getMaterial, getStateMaterial } from "./materials.js"
 
 // ---------------------------------------------------------------------------
 // Matrix helpers (column-major for WebGL)
@@ -87,74 +97,112 @@ export function mat4Multiply(a, b) {
 }
 
 // ---------------------------------------------------------------------------
-// Geometry data for entity types
+// Shader sources
 // ---------------------------------------------------------------------------
 
-/** Box vertices (36 verts = 12 triangles, CCW winding) */
-function makeBoxVertices(sx = 1, sy = 1, sz = 1) {
-  const hx = sx / 2, hy = sy / 2, hz = sz / 2
-  // prettier-ignore
-  return new Float32Array([
-    // Front face
-    -hx, -hy,  hz,   hx, -hy,  hz,   hx,  hy,  hz,
-    -hx, -hy,  hz,   hx,  hy,  hz,  -hx,  hy,  hz,
-    // Back face
-    -hx, -hy, -hz,  -hx,  hy, -hz,   hx,  hy, -hz,
-    -hx, -hy, -hz,   hx,  hy, -hz,   hx, -hy, -hz,
-    // Top face
-    -hx,  hy, -hz,  -hx,  hy,  hz,   hx,  hy,  hz,
-    -hx,  hy, -hz,   hx,  hy,  hz,   hx,  hy, -hz,
-    // Bottom face
-    -hx, -hy, -hz,   hx, -hy, -hz,   hx, -hy,  hz,
-    -hx, -hy, -hz,   hx, -hy,  hz,  -hx, -hy,  hz,
-    // Right face
-     hx, -hy, -hz,   hx,  hy, -hz,   hx,  hy,  hz,
-     hx, -hy, -hz,   hx,  hy,  hz,   hx, -hy,  hz,
-    // Left face
-    -hx, -hy, -hz,  -hx, -hy,  hz,  -hx,  hy,  hz,
-    -hx, -hy, -hz,  -hx,  hy,  hz,  -hx,  hy, -hz,
-  ])
-}
-
-/** Sphere vertices (UV sphere) */
-function makeSphereVertices(radius = 0.5, rings = 12, segments = 16) {
-  const verts = []
-  for (let r = 0; r < rings; r++) {
-    const theta1 = (r / rings) * Math.PI
-    const theta2 = ((r + 1) / rings) * Math.PI
-    for (let s = 0; s < segments; s++) {
-      const phi1 = (s / segments) * 2 * Math.PI
-      const phi2 = ((s + 1) / segments) * 2 * Math.PI
-
-      const p1 = spherePoint(radius, theta1, phi1)
-      const p2 = spherePoint(radius, theta2, phi1)
-      const p3 = spherePoint(radius, theta2, phi2)
-      const p4 = spherePoint(radius, theta1, phi2)
-
-      verts.push(...p1, ...p2, ...p3)
-      verts.push(...p1, ...p3, ...p4)
-    }
+const VERTEX_SHADER = `
+  attribute vec3 aPosition;
+  attribute vec3 aNormal;
+  uniform mat4 uMVP;
+  uniform mat4 uModel;
+  varying vec3 vWorldPos;
+  varying vec3 vNormal;
+  void main() {
+    vWorldPos = (uModel * vec4(aPosition, 1.0)).xyz;
+    vNormal = aNormal;
+    gl_Position = uMVP * vec4(aPosition, 1.0);
   }
-  return new Float32Array(verts)
+`
+
+const FRAGMENT_SHADER = `
+  precision mediump float;
+
+  // Lighting
+  uniform vec3 uLightDir;
+  uniform vec3 uLightColor;
+  uniform vec3 uFillLightDir;
+  uniform vec3 uFillLightColor;
+  uniform vec3 uAmbientColor;
+
+  // Material
+  uniform vec3 uColor;
+  uniform vec3 uSpecularColor;
+  uniform float uShininess;
+  uniform float uEmissive;
+  uniform float uRimStrength;
+  uniform float uOpacity;
+
+  // Fog
+  uniform vec3 uFogColor;
+  uniform float uFogNear;
+  uniform float uFogFar;
+
+  varying vec3 vWorldPos;
+  varying vec3 vNormal;
+
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(-vWorldPos);
+
+    // Key light (Blinn-Phong)
+    float diff1 = max(dot(N, uLightDir), 0.0);
+    vec3 H1 = normalize(uLightDir + V);
+    float spec1 = pow(max(dot(N, H1), 0.0), uShininess);
+
+    // Fill light
+    float diff2 = max(dot(N, uFillLightDir), 0.0);
+    vec3 H2 = normalize(uFillLightDir + V);
+    float spec2 = pow(max(dot(N, H2), 0.0), uShininess) * 0.3;
+
+    // Rim / fresnel light
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0) * uRimStrength;
+
+    // Combine
+    vec3 ambient  = uAmbientColor * uColor;
+    vec3 diffuse  = uColor * (diff1 * uLightColor + diff2 * uFillLightColor);
+    vec3 specular = uSpecularColor * (spec1 * uLightColor + spec2 * uFillLightColor);
+    vec3 emissive = uColor * uEmissive;
+    vec3 rimCol   = vec3(0.4, 0.5, 0.7) * rim;
+
+    vec3 finalColor = ambient + diffuse + specular + emissive + rimCol;
+
+    // Distance fog (linear)
+    float dist = length(vWorldPos);
+    float fogFactor = clamp((uFogFar - dist) / (uFogFar - uFogNear), 0.0, 1.0);
+    finalColor = mix(uFogColor, finalColor, fogFactor);
+
+    gl_FragColor = vec4(finalColor, uOpacity);
+  }
+`
+
+// ---------------------------------------------------------------------------
+// Lighting & environment constants
+// ---------------------------------------------------------------------------
+
+function normalize3(v) {
+  const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+  return [v[0] / len, v[1] / len, v[2] / len]
 }
 
-function spherePoint(r, theta, phi) {
-  return [
-    r * Math.sin(theta) * Math.cos(phi),
-    r * Math.cos(theta),
-    r * Math.sin(theta) * Math.sin(phi),
-  ]
-}
+/** Key light — warm white from upper-right. */
+const KEY_LIGHT_DIR = normalize3([1.0, 1.5, 0.5])
+const KEY_LIGHT_COLOR = [1.0, 0.95, 0.85]
 
-/** Quad vertices for panels (2 triangles forming a plane) */
-function makePanelVertices(w = 1.2, h = 0.8) {
-  const hw = w / 2, hh = h / 2
-  // prettier-ignore
-  return new Float32Array([
-    -hw, -hh, 0,   hw, -hh, 0,   hw,  hh, 0,
-    -hw, -hh, 0,   hw,  hh, 0,  -hw,  hh, 0,
-  ])
-}
+/** Fill light — cool blue from left-below. */
+const FILL_LIGHT_DIR = normalize3([-0.5, -0.3, 0.8])
+const FILL_LIGHT_COLOR = [0.35, 0.4, 0.55]
+
+/** Ambient — dark blue-purple. */
+const AMBIENT_COLOR = [0.12, 0.12, 0.18]
+
+/** Fog — matches clear color for seamless distance fade. */
+const FOG_COLOR = [0.05, 0.05, 0.12]
+const FOG_NEAR = 3.0
+const FOG_FAR = 12.0
+
+/** Ground plane constants. */
+const GROUND_Y = -1.5
+const GROUND_COLOR = [0.08, 0.08, 0.14]
 
 // ---------------------------------------------------------------------------
 // PlazaRenderer
@@ -182,33 +230,19 @@ export class PlazaRenderer {
     this.attribs = {}
     /** @type {Float32Array} reusable model matrix */
     this._modelMatrix = new Float32Array(16)
+    /** @type {GPUObject|null} ground plane GPU data */
+    this._groundGPU = null
 
     this._initShaders()
     this._initState()
+    this._initGroundPlane()
   }
 
   _initShaders() {
     const gl = this.gl
 
-    const vsSource = `
-      attribute vec3 aPosition;
-      uniform mat4 uMVP;
-      void main() {
-        gl_Position = uMVP * vec4(aPosition, 1.0);
-      }
-    `
-
-    const fsSource = `
-      precision mediump float;
-      uniform vec3 uColor;
-      uniform float uOpacity;
-      void main() {
-        gl_FragColor = vec4(uColor, uOpacity);
-      }
-    `
-
-    const vs = this._compileShader(gl.VERTEX_SHADER, vsSource)
-    const fs = this._compileShader(gl.FRAGMENT_SHADER, fsSource)
+    const vs = this._compileShader(gl.VERTEX_SHADER, VERTEX_SHADER)
+    const fs = this._compileShader(gl.FRAGMENT_SHADER, FRAGMENT_SHADER)
 
     this.program = gl.createProgram()
     gl.attachShader(this.program, vs)
@@ -219,11 +253,20 @@ export class PlazaRenderer {
       throw new Error("Program link error: " + gl.getProgramInfoLog(this.program))
     }
 
-    this.uniforms.uMVP = gl.getUniformLocation(this.program, "uMVP")
-    this.uniforms.uColor = gl.getUniformLocation(this.program, "uColor")
-    this.uniforms.uOpacity = gl.getUniformLocation(this.program, "uOpacity")
+    // Cache all uniform locations
+    const uniformNames = [
+      "uMVP", "uModel",
+      "uLightDir", "uLightColor", "uFillLightDir", "uFillLightColor", "uAmbientColor",
+      "uColor", "uSpecularColor", "uShininess", "uEmissive", "uRimStrength", "uOpacity",
+      "uFogColor", "uFogNear", "uFogFar",
+    ]
+    for (const name of uniformNames) {
+      this.uniforms[name] = gl.getUniformLocation(this.program, name)
+    }
+
     this.attribs = {
       aPosition: gl.getAttribLocation(this.program, "aPosition"),
+      aNormal: gl.getAttribLocation(this.program, "aNormal"),
     }
   }
 
@@ -243,8 +286,19 @@ export class PlazaRenderer {
     gl.enable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    const CLEAR_COLOR = [0.05, 0.05, 0.12, 1.0] // dark blue-black
-    gl.clearColor(...CLEAR_COLOR)
+    gl.clearColor(...FOG_COLOR, 1.0)
+  }
+
+  /**
+   * Initialize the ground plane GPU buffer.
+   */
+  _initGroundPlane() {
+    const gl = this.gl
+    const geo = makeGroundPlaneGeometry(25)
+    const buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, geo.data, gl.STATIC_DRAW)
+    this._groundGPU = { buffer, vertexCount: geo.vertexCount }
   }
 
   /**
@@ -263,48 +317,133 @@ export class PlazaRenderer {
   }
 
   /**
-   * Ensure GPU buffers exist for a node.
+   * Ensure GPU buffers exist for a node. Uses entity-specific geometry.
    * @param {object} node - PlazaNode
    */
   ensureGPUObject(node) {
     if (this.gpuObjects.has(node.id)) return
 
     const gl = this.gl
-    let vertices
+    let geo
 
-    switch (node.entityType) {
-      case "npc":
-        vertices = makeSphereVertices(0.4, 8, 12)
-        break
-      case "object":
-        vertices = makeBoxVertices(0.6, 0.6, 0.6)
-        break
-      case "panel":
-        vertices = makePanelVertices(1.4, 1.0)
-        break
-      case "audio":
-        // Audio nodes: small marker sphere
-        vertices = makeSphereVertices(0.15, 6, 8)
-        break
-      default:
-        vertices = makeBoxVertices(0.3, 0.3, 0.3)
+    // Entity-specific geometry selection
+    if (node.id === "Fountain") {
+      geo = makeFountainGeometry()
+    } else if (node.id === "MarketStand") {
+      geo = makeMarketStandGeometry()
+    } else {
+      switch (node.entityType) {
+        case "npc":
+          geo = makeNPCGeometry()
+          break
+        case "panel":
+          geo = makeKnowledgePanelGeometry()
+          break
+        case "audio":
+          geo = makeAudioMarkerGeometry()
+          break
+        case "object":
+        default:
+          geo = makeBoxGeometry(0.6, 0.6, 0.6)
+          break
+      }
     }
 
     const buffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, geo.data, gl.STATIC_DRAW)
 
     this.gpuObjects.set(node.id, {
       buffer,
-      vertexCount: vertices.length / 3,
+      vertexCount: geo.vertexCount,
     })
+  }
+
+  /**
+   * Set per-frame uniforms (lighting, fog) that don't change per entity.
+   */
+  _setFrameUniforms() {
+    const gl = this.gl
+    gl.uniform3fv(this.uniforms.uLightDir, KEY_LIGHT_DIR)
+    gl.uniform3fv(this.uniforms.uLightColor, KEY_LIGHT_COLOR)
+    gl.uniform3fv(this.uniforms.uFillLightDir, FILL_LIGHT_DIR)
+    gl.uniform3fv(this.uniforms.uFillLightColor, FILL_LIGHT_COLOR)
+    gl.uniform3fv(this.uniforms.uAmbientColor, AMBIENT_COLOR)
+    gl.uniform3fv(this.uniforms.uFogColor, FOG_COLOR)
+    gl.uniform1f(this.uniforms.uFogNear, FOG_NEAR)
+    gl.uniform1f(this.uniforms.uFogFar, FOG_FAR)
+  }
+
+  /**
+   * Bind and draw a single GPU object with interleaved pos+normal attributes.
+   * @param {GPUObject} gpu
+   */
+  _drawGPUObject(gpu) {
+    const gl = this.gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, gpu.buffer)
+    gl.enableVertexAttribArray(this.attribs.aPosition)
+    gl.vertexAttribPointer(
+      this.attribs.aPosition, 3, gl.FLOAT, false,
+      VERTEX_STRIDE_BYTES, POSITION_OFFSET,
+    )
+    if (this.attribs.aNormal >= 0) {
+      gl.enableVertexAttribArray(this.attribs.aNormal)
+      gl.vertexAttribPointer(
+        this.attribs.aNormal, 3, gl.FLOAT, false,
+        VERTEX_STRIDE_BYTES, NORMAL_OFFSET,
+      )
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, gpu.vertexCount)
+  }
+
+  /**
+   * Set material uniforms for a given material definition.
+   * @param {object} mat - { specularColor, shininess, emissive, rimStrength }
+   */
+  _setMaterialUniforms(mat) {
+    const gl = this.gl
+    gl.uniform3fv(this.uniforms.uSpecularColor, mat.specularColor)
+    gl.uniform1f(this.uniforms.uShininess, mat.shininess)
+    gl.uniform1f(this.uniforms.uEmissive, mat.emissive)
+    gl.uniform1f(this.uniforms.uRimStrength, mat.rimStrength)
+  }
+
+  /**
+   * Render the ground plane (always visible, provides spatial anchoring).
+   * @param {Float32Array} vp - view-projection matrix
+   */
+  _renderGroundPlane(vp) {
+    if (!this._groundGPU) return
+    const gl = this.gl
+
+    // Ground model matrix — translate to GROUND_Y
+    const model = this._modelMatrix
+    model.fill(0)
+    model[0] = 1; model[5] = 1; model[10] = 1; model[15] = 1
+    model[13] = GROUND_Y
+
+    const mvp = mat4Multiply(vp, model)
+    gl.uniformMatrix4fv(this.uniforms.uMVP, false, mvp)
+    gl.uniformMatrix4fv(this.uniforms.uModel, false, model)
+
+    // Ground material + color
+    gl.uniform3fv(this.uniforms.uColor, GROUND_COLOR)
+    gl.uniform1f(this.uniforms.uOpacity, 1.0)
+    this._setMaterialUniforms({
+      specularColor: [0.1, 0.1, 0.1],
+      shininess: 4.0,
+      emissive: 0.02,
+      rimStrength: 0.0,
+    })
+
+    this._drawGPUObject(this._groundGPU)
   }
 
   /**
    * Render the full scene.
    * @param {object[]} nodes - array of PlazaNodes
    * @param {number[]} headQuat - [x, y, z, w]
-   * @param {number} sphereRadius - distance of objects from camera
+   * @param {number} sphereRadius - default distance of objects from camera
    * @param {number} [time] - current time in ms (defaults to performance.now())
    */
   render(nodes, headQuat, sphereRadius = 5, time = performance.now()) {
@@ -319,18 +458,28 @@ export class PlazaRenderer {
     const view = viewMatrixFromQuat(headQuat)
     const vp = mat4Multiply(proj, view)
 
+    // Set per-frame lighting and fog uniforms
+    this._setFrameUniforms()
+
+    // Render ground plane (always visible)
+    this._renderGroundPlane(vp)
+
+    // Render scene entities
     for (const node of nodes) {
-      // Skip idle nodes (not rendered) and audio-only nodes without visual
+      // Skip idle nodes (not rendered)
       if (node.spinState === SpinState.IDLE) continue
 
       this.ensureGPUObject(node)
       const gpu = this.gpuObjects.get(node.id)
       if (!gpu) continue
 
-      // Compute world position from orientation
-      const pos = orientationToPosition(node.orientation, sphereRadius)
+      // Compute world position from orientation + per-entity render hints
+      const radius = node.metadata.renderRadius || sphereRadius
+      const yOffset = node.metadata.renderYOffset || 0
+      const pos = orientationToPosition(node.orientation, radius)
+      pos[1] += yOffset
 
-      // Model matrix (translation only — no rotation needed for basic shapes)
+      // Model matrix (translation + optional uniform scale)
       const model = this._modelMatrix
       model.fill(0)
       model[0] = 1; model[5] = 1; model[10] = 1; model[15] = 1
@@ -345,21 +494,23 @@ export class PlazaRenderer {
       }
 
       const mvp = mat4Multiply(vp, model)
-
-      // Set uniforms
       gl.uniformMatrix4fv(this.uniforms.uMVP, false, mvp)
+      gl.uniformMatrix4fv(this.uniforms.uModel, false, model)
 
+      // Color + opacity from SpinState
       const color = node.metadata.color || [0.7, 0.7, 0.7]
       const opacity = getOpacity(node.spinState)
       const finalColor = getColorForState(color, node.spinState)
       gl.uniform3fv(this.uniforms.uColor, finalColor)
       gl.uniform1f(this.uniforms.uOpacity, opacity)
 
+      // Material from entity type + SpinState modification
+      const baseMat = getMaterial(node)
+      const mat = getStateMaterial(baseMat, node.spinState)
+      this._setMaterialUniforms(mat)
+
       // Draw
-      gl.bindBuffer(gl.ARRAY_BUFFER, gpu.buffer)
-      gl.enableVertexAttribArray(this.attribs.aPosition)
-      gl.vertexAttribPointer(this.attribs.aPosition, 3, gl.FLOAT, false, 0, 0)
-      gl.drawArrays(gl.TRIANGLES, 0, gpu.vertexCount)
+      this._drawGPUObject(gpu)
     }
   }
 
@@ -372,6 +523,10 @@ export class PlazaRenderer {
       gl.deleteBuffer(gpu.buffer)
     }
     this.gpuObjects.clear()
+    if (this._groundGPU) {
+      gl.deleteBuffer(this._groundGPU.buffer)
+      this._groundGPU = null
+    }
     if (this.program) {
       gl.deleteProgram(this.program)
       this.program = null

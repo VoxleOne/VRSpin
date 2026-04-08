@@ -10,6 +10,8 @@ export function createMockGL() {
     calls.push({ name, args: Array.from(args) })
   }
 
+  let uniformLocCounter = 0
+
   return {
     ARRAY_BUFFER: 0x8892,
     STATIC_DRAW: 0x88E4,
@@ -21,6 +23,12 @@ export function createMockGL() {
     FRAGMENT_SHADER: 0x8B30,
     COMPILE_STATUS: 0x8B81,
     LINK_STATUS: 0x8B82,
+    DEPTH_TEST: 0x0B71,
+    BLEND: 0x0BE2,
+    CULL_FACE: 0x0B44,
+    SRC_ALPHA: 0x0302,
+    ONE_MINUS_SRC_ALPHA: 0x0303,
+    LEQUAL: 0x0203,
 
     createBuffer() {
       const buf = { id: buffers.length }
@@ -44,6 +52,11 @@ export function createMockGL() {
     getAttribLocation(program, name) {
       record("getAttribLocation", arguments)
       return 0
+    },
+
+    getUniformLocation(program, name) {
+      record("getUniformLocation", arguments)
+      return { name, id: uniformLocCounter++ }
     },
 
     enableVertexAttribArray(index) {
@@ -72,6 +85,26 @@ export function createMockGL() {
 
     viewport(x, y, w, h) {
       record("viewport", arguments)
+    },
+
+    enable(cap) {
+      record("enable", arguments)
+    },
+
+    disable(cap) {
+      record("disable", arguments)
+    },
+
+    blendFunc(src, dst) {
+      record("blendFunc", arguments)
+    },
+
+    depthFunc(func) {
+      record("depthFunc", arguments)
+    },
+
+    depthMask(flag) {
+      record("depthMask", arguments)
     },
 
     createShader(type) {
@@ -122,6 +155,22 @@ export function createMockGL() {
 
     deleteProgram(program) {
       record("deleteProgram", arguments)
+    },
+
+    uniformMatrix4fv(location, transpose, value) {
+      record("uniformMatrix4fv", arguments)
+    },
+
+    uniform3fv(location, value) {
+      record("uniform3fv", arguments)
+    },
+
+    uniform1f(location, value) {
+      record("uniform1f", arguments)
+    },
+
+    uniform1i(location, value) {
+      record("uniform1i", arguments)
     },
 
     /** Retrieve all recorded WebGL calls for assertions. */
