@@ -18,7 +18,7 @@ dependencies = [
     "numpy>=1.22",
     "scipy>=1.10",
     "scikit-learn>=1.2",
-    "spinstep @ git+https://github.com/VoxleOne/SpinStep.git",
+    "spinstep @ git+https://github.com/VoxleOne/SpinStep.git@v0.6.0a0",
 ]
 
 [project.scripts]
