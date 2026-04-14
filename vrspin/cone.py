@@ -14,10 +14,14 @@ from typing import Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy.spatial.transform import Rotation as R
 
 from spinstep import DiscreteOrientationSet
-from spinstep.utils import is_within_angle_threshold, batch_quaternion_angle
+from spinstep.utils import (
+    is_within_angle_threshold,
+    batch_quaternion_angle,
+    forward_vector_from_quaternion,
+    quaternion_distance as _spinstep_quat_distance,
+)
 
 
 class AttentionCone:
@@ -275,7 +279,7 @@ class AttentionCone:
         Returns:
             NumPy array of shape ``(3,)``.
         """
-        return R.from_quat(self.orientation).apply(np.array([0.0, 0.0, -1.0]))
+        return forward_vector_from_quaternion(self.orientation)
 
     def angular_distance_to(self, target_quat: ArrayLike) -> float:
         """Return the angular distance in radians between this cone and *target_quat*.
@@ -291,6 +295,4 @@ class AttentionCone:
         if norm < 1e-8:
             return float(np.pi)
         target = target / norm
-        return float(
-            (R.from_quat(self.orientation).inv() * R.from_quat(target)).magnitude()
-        )
+        return float(_spinstep_quat_distance(self.orientation, target))

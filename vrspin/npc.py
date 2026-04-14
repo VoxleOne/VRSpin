@@ -14,13 +14,18 @@ from typing import List, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy.spatial.transform import Rotation as R, Slerp
 
 from spinstep import Node
-from spinstep.utils import is_within_angle_threshold, quaternion_distance
+from spinstep.utils import (
+    is_within_angle_threshold,
+    quaternion_distance,
+    forward_vector_from_quaternion,
+    direction_to_quaternion,
+)
 
 from .cone import AttentionCone
 from .user import VRUser
+from .utils import slerp as _vrspin_slerp
 
 
 class NPCState(Enum):
@@ -132,17 +137,12 @@ class NPC:
         """Advance one SLERP step toward :attr:`target_orientation`."""
         if self.target_orientation is None:
             return
-        current = R.from_quat(self.node.orientation)
-        target = R.from_quat(self.target_orientation)
-        times = [0.0, 1.0]
-        key_rots = R.from_quat(
-            np.stack([current.as_quat(), target.as_quat()])
+        new_quat = _vrspin_slerp(
+            self.node.orientation, self.target_orientation, self.slerp_speed
         )
-        slerp = Slerp(times, key_rots)
-        new_rot = slerp([self.slerp_speed])[0]
-        new_quat = new_rot.as_quat()
+        new_quat = new_quat / np.linalg.norm(new_quat)
         # Update node orientation (replace array values in place)
-        self.node.orientation[:] = new_quat / np.linalg.norm(new_quat)
+        self.node.orientation[:] = new_quat
         self.perception_cone.update_orientation(self.node.orientation)
 
     # ------------------------------------------------------------------
@@ -175,8 +175,10 @@ class NPC:
                 events.append(
                     f"NPC {self.name!r} notices {user.name!r} — begins rotating"
                 )
-                # Target: face back toward the user (inverse of user orientation)
-                facing_user = R.from_quat(user.orientation).inv().as_quat()
+                # Target: face back toward the user (quaternion conjugate)
+                # For unit quaternions, inv() == conjugate: [-x, -y, -z, w]
+                uq = user.orientation
+                facing_user = np.array([-uq[0], -uq[1], -uq[2], uq[3]])
                 self._set_target_orientation(facing_user)
 
             if self.state in (NPCState.NOTICING, NPCState.ENGAGED):
@@ -184,10 +186,9 @@ class NPC:
 
             # Check whether fully turned
             if self.target_orientation is not None:
-                angle_remaining = (
-                    R.from_quat(self.node.orientation).inv()
-                    * R.from_quat(self.target_orientation)
-                ).magnitude()
+                angle_remaining = quaternion_distance(
+                    self.node.orientation, self.target_orientation
+                )
                 if angle_remaining < self.ENGAGED_THRESHOLD and self.state == NPCState.NOTICING:
                     self.state = NPCState.ENGAGED
                     events.append(
@@ -309,11 +310,7 @@ class NPCAttentionAgent:
         target = np.asarray(target_quat, dtype=float)
         target = target / np.linalg.norm(target)
 
-        current = R.from_quat(self.entity.orientation)
-        goal = R.from_quat(target)
-        key_rots = R.from_quat(np.stack([current.as_quat(), goal.as_quat()]))
-        interp = Slerp([0.0, 1.0], key_rots)
-        new_quat = interp([t])[0].as_quat()
+        new_quat = _vrspin_slerp(self.entity.orientation, target, t)
         new_quat = new_quat / np.linalg.norm(new_quat)
         self.entity.orientation[:] = new_quat
 

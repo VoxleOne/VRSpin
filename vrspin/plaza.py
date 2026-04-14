@@ -29,9 +29,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 
 from spinstep import Node, QuaternionDepthIterator
+from spinstep.utils import quaternion_from_euler, quaternion_distance as _spinstep_quat_distance
 
 from .cone import AttentionCone
 from .entities import AudioSource, InteractiveObject, KnowledgePanel, PanelPage
@@ -113,7 +113,7 @@ class VirtualPlaza:
         # ------ orientation helpers ------
         def _y_rot(deg: float) -> np.ndarray:
             """Unit quaternion for a rotation of *deg* degrees around +Y."""
-            return R.from_euler("y", deg, degrees=True).as_quat()
+            return quaternion_from_euler([0.0, deg, 0.0], order="xyz")
 
         north = _y_rot(0.0)        # [0, 0, 0, 1] — fountain / Elena
         nw = _y_rot(70.0)          # 70° left — VR Art panel (outside front FOV)
@@ -417,4 +417,4 @@ def _angle_to(q1: np.ndarray, q2: np.ndarray) -> float:
     """Angular distance in radians between two quaternions."""
     q1 = q1 / np.linalg.norm(q1)
     q2 = q2 / np.linalg.norm(q2)
-    return float((R.from_quat(q1).inv() * R.from_quat(q2)).magnitude())
+    return float(_spinstep_quat_distance(q1, q2))
