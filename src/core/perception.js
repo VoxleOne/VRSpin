@@ -124,6 +124,62 @@ export function evaluateAllPerceptions(headQuat, nodes, deltaTime, halfAngle = V
 }
 
 /**
+ * Evaluate perception for all nodes from multiple observers.
+ *
+ * Each observer independently evaluates perception against all nodes.
+ * Per-observer dwell state is tracked in ``node._observerDwell[observerId]``.
+ *
+ * @param {Array<{id: string, quat: number[]}>} observers - array of observer descriptors
+ * @param {object[]} nodes - array of PlazaNodes
+ * @param {number} deltaTime - frame time in seconds
+ * @param {number} [halfAngle=VISUAL_HALF_ANGLE]
+ * @returns {Object.<string, object[]>} per-observer array of nodes with their states
+ */
+export function evaluateMultiObserverPerceptions(observers, nodes, deltaTime, halfAngle = VISUAL_HALF_ANGLE) {
+  const results = {}
+
+  for (const observer of observers) {
+    const observerNodes = []
+
+    for (const node of nodes) {
+      // Skip self-observation
+      if (node.id === observer.id) continue
+
+      // Initialize per-observer dwell tracking
+      if (!node._observerDwell) node._observerDwell = {}
+      if (node._observerDwell[observer.id] === undefined) {
+        node._observerDwell[observer.id] = 0
+      }
+
+      const angle = quaternionDistance(observer.quat, node.orientation)
+      let dwellTime = node._observerDwell[observer.id]
+      let state
+
+      if (angle < halfAngle) {
+        dwellTime += deltaTime
+        if (dwellTime >= DWELL_ACTIVATED) {
+          state = SpinState.ACTIVATED
+        } else if (dwellTime >= DWELL_FOCUSED) {
+          state = SpinState.FOCUSED
+        } else {
+          state = SpinState.PERCEIVED
+        }
+      } else {
+        dwellTime = 0
+        state = SpinState.IDLE
+      }
+
+      node._observerDwell[observer.id] = dwellTime
+      observerNodes.push({ node, state, dwellTime })
+    }
+
+    results[observer.id] = observerNodes
+  }
+
+  return results
+}
+
+/**
  * Compute audio gain for a node based on angular distance.
  * Uses cosine falloff within audio cone, attenuated to 15% outside
  * (matching plaza.py behavior).

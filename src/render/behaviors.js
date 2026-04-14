@@ -16,12 +16,13 @@ import { slerp, quaternionDistance } from "../core/spinstep.js"
  * @param {object[]} nodes - array of PlazaNodes
  * @param {number[]} headQuat - user head orientation [x, y, z, w]
  * @param {number} deltaTime - frame time in seconds
+ * @param {Object.<string, object[]>} [npcObserverResults] - optional per-NPC observer results
  */
-export function updateBehaviors(nodes, headQuat, deltaTime) {
+export function updateBehaviors(nodes, headQuat, deltaTime, npcObserverResults = null) {
   for (const node of nodes) {
     switch (node.entityType) {
       case "npc":
-        updateNPC(node, headQuat, deltaTime)
+        updateNPC(node, headQuat, deltaTime, npcObserverResults)
         break
       case "panel":
         updatePanel(node, headQuat, deltaTime)
@@ -48,8 +49,9 @@ export function updateBehaviors(nodes, headQuat, deltaTime) {
  * @param {object} node - PlazaNode with entityType="npc"
  * @param {number[]} headQuat
  * @param {number} deltaTime
+ * @param {Object.<string, object[]>} [npcObserverResults] - optional multi-observer results
  */
-function updateNPC(node, headQuat, deltaTime) {
+function updateNPC(node, headQuat, deltaTime, npcObserverResults = null) {
   const perceptionHalf = node.metadata.perceptionHalfAngle || (120 * Math.PI / 180)
   const slerpSpeed = node.metadata.slerpSpeed || 0.15
   const angle = quaternionDistance(headQuat, node.orientation)
@@ -106,6 +108,22 @@ function updateNPC(node, headQuat, deltaTime) {
       node.npcState = "idle"
       node.npcTargetOrientation = null
       node.metadata._currentFacing = null
+    }
+  }
+
+  // NPC-as-observer: track awareness of other entities via multi-observer results
+  if (npcObserverResults && npcObserverResults[node.id]) {
+    const observed = npcObserverResults[node.id]
+    if (!node.npcObservedEntities) node.npcObservedEntities = {}
+    for (const entry of observed) {
+      if (entry.state !== "idle") {
+        node.npcObservedEntities[entry.node.id] = {
+          state: entry.state,
+          dwellTime: entry.dwellTime,
+        }
+      } else {
+        delete node.npcObservedEntities[entry.node.id]
+      }
     }
   }
 }
