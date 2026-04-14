@@ -1,16 +1,19 @@
 """Scene entity with position, orientation, and metadata for VR integration.
 
 Provides :class:`SceneEntity` (a SpinStep :class:`~spinstep.Node` subclass),
-:class:`AttentionResult`, and :class:`AttentionManager` for querying which
-entities fall within the user's attention cone each frame.
+:class:`AttentionResult`, :class:`AttentionManager`, and the :class:`Observer`
+protocol for multi-observer perception.
+
+Any node that has an ``orientation`` and ``attention_cones`` can act as an
+observer (the *Multi-Observer* model from SpinStep v0.6.0).
 """
 
 from __future__ import annotations
 
-__all__ = ["SceneEntity", "AttentionResult", "AttentionManager"]
+__all__ = ["SceneEntity", "AttentionResult", "AttentionManager", "Observer"]
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -90,6 +93,36 @@ class SceneEntity(Node):
             f"SceneEntity({self.name!r}, type={self.entity_type!r}, "
             f"pos={self.position.tolist()})"
         )
+
+
+# ---------------------------------------------------------------------------
+# Observer protocol
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class Observer(Protocol):
+    """Protocol for any node that can act as an observer.
+
+    An observer has an orientation quaternion and a dict of attention cones
+    keyed by modality (e.g. ``"visual"``, ``"perception"``).  Any object
+    satisfying this protocol can be passed to
+    :meth:`AttentionManager.update_observers`.
+
+    Example::
+
+        class MyRobot:
+            orientation = np.array([0, 0, 0, 1.0])
+            attention_cones = {
+                "visual": AttentionCone([0,0,0,1], half_angle=np.radians(45)),
+            }
+    """
+
+    @property
+    def orientation(self) -> np.ndarray: ...
+
+    @property
+    def attention_cones(self) -> Dict[str, AttentionCone]: ...
 
 
 @dataclass
@@ -205,3 +238,36 @@ class AttentionManager:
         if self._last_result is None:
             return []
         return [entity for entity, _ in self._last_result.attended]
+
+    # ------------------------------------------------------------------
+    # Multi-observer support
+    # ------------------------------------------------------------------
+
+    def update_observers(
+        self,
+        observers: List[Observer],
+        cone_half_angle: float,
+        falloff: Optional[str] = "linear",
+    ) -> Dict[str, AttentionResult]:
+        """Query entities from the perspective of multiple observers.
+
+        Each observer independently evaluates all registered entities using
+        a temporary :class:`~vrspin.cone.AttentionCone`.
+
+        Args:
+            observers: List of objects satisfying the :class:`Observer`
+                protocol (must have ``.orientation`` and a ``name`` or
+                ``__class__.__name__``).
+            cone_half_angle: Half-aperture of the attention cone in radians.
+            falloff: Attenuation curve (``'linear'``, ``'cosine'``, or
+                ``None``).
+
+        Returns:
+            Dict mapping observer names to :class:`AttentionResult` instances.
+        """
+        results: Dict[str, AttentionResult] = {}
+        for observer in observers:
+            name = getattr(observer, "name", observer.__class__.__name__)
+            result = self.update(observer.orientation, cone_half_angle, falloff)
+            results[name] = result
+        return results

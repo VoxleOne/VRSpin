@@ -389,6 +389,23 @@ class VirtualPlaza:
             )
         self._last_haptic_sources = haptic_sources
 
+        # -- 7. NPC-as-observer (multi-observer model) ------------------------
+        #   Each NPC observes other scene entities from its own perspective,
+        #   enabling NPC-to-NPC awareness.
+        all_entities = self._all_scene_entities()
+        for npc in self.npcs:
+            npc_result = npc.observe(all_entities)
+            for entity, strength in npc_result.attended:
+                events.append(
+                    PlazaEvent(
+                        self.tick_count,
+                        "npc_observation",
+                        npc.name,
+                        f"NPC {npc.name!r} observes {entity.name!r} "
+                        f"(strength {strength:.2f})",
+                    )
+                )
+
         return events
 
     # ------------------------------------------------------------------
@@ -406,6 +423,19 @@ class VirtualPlaza:
 
     def get_panel(self, name: str) -> Optional[KnowledgePanel]:
         return self._panels_by_name.get(name)
+
+    def _all_scene_entities(self) -> List:
+        """Return all scene entity nodes for multi-observer queries."""
+        nodes = []
+        for obj in self.objects:
+            nodes.append(obj.node)
+        for npc in self.npcs:
+            nodes.append(npc.node)
+        for audio in self.audio_sources:
+            nodes.append(audio.node)
+        for panel in self.knowledge_panels:
+            nodes.append(panel.node)
+        return nodes
 
 
 # ---------------------------------------------------------------------------

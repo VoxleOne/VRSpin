@@ -10,7 +10,7 @@ from __future__ import annotations
 __all__ = ["NPC", "NPCState", "NPCAttentionAgent"]
 
 from enum import Enum, auto
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -124,6 +124,56 @@ class NPC:
             user: The :class:`~vrspin.user.VRUser` to test.
         """
         return self.perception_cone.is_in_cone(user.orientation)
+
+    @property
+    def attention_cones(self) -> Dict[str, AttentionCone]:
+        """Return a dict of attention cones for multi-observer support.
+
+        The NPC exposes its perception cone so that it can satisfy the
+        :class:`~vrspin.scene.Observer` protocol and act as an observer
+        in the multi-observer model.
+        """
+        return {"perception": self.perception_cone}
+
+    def observe(
+        self,
+        entities: List,
+        cone_half_angle: Optional[float] = None,
+    ) -> "AttentionResult":
+        """Query scene entities from this NPC's perspective.
+
+        Evaluates each entity against the NPC's perception cone and returns
+        an :class:`~vrspin.scene.AttentionResult` describing which entities
+        the NPC is attending to.
+
+        Args:
+            entities: List of :class:`~vrspin.scene.SceneEntity` objects.
+            cone_half_angle: Override half-angle in radians.  If ``None``,
+                uses the NPC's perception cone half-angle.
+
+        Returns:
+            :class:`~vrspin.scene.AttentionResult`.
+        """
+        from .scene import AttentionResult
+
+        half = cone_half_angle if cone_half_angle is not None else self.perception_cone.half_angle
+        cone = AttentionCone(
+            self.orientation,
+            half_angle=half,
+            falloff="linear",
+        )
+        attended = []
+        unattended = []
+        for entity in entities:
+            if getattr(entity, "name", None) == self.name:
+                continue  # skip self
+            strength = cone.attenuation(entity.orientation)
+            if strength > 0.0:
+                attended.append((entity, strength))
+            else:
+                unattended.append(entity)
+        attended.sort(key=lambda t: t[1], reverse=True)
+        return AttentionResult(attended=attended, unattended=unattended)
 
     # ------------------------------------------------------------------
     # Rotation toward target
