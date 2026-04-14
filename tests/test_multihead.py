@@ -100,3 +100,37 @@ class TestMultiHeadAttention:
         # 'target' is 5° from new_dir → should be inside visual (30°)
         vis_names = [e.name for e, _ in results["visual"]]
         assert "target" in vis_names
+
+
+# ---------------------------------------------------------------------------
+# Multi-observer with MultiHeadAttention
+# ---------------------------------------------------------------------------
+
+
+class TestMultiObserverMultiHead:
+    """Tests for MultiHeadAttention used with different observer origins."""
+
+    def _make_heads(self, origin=IDENTITY):
+        return {
+            "visual": AttentionCone(origin, half_angle=np.radians(30), falloff="linear"),
+            "audio": AttentionCone(origin, half_angle=np.radians(90), falloff="cosine"),
+        }
+
+    def test_update_with_different_observer_origins(self):
+        multi = MultiHeadAttention(self._make_heads())
+        e1 = SceneEntity("front", _y_rot(5))
+        e2 = SceneEntity("side", _y_rot(85))
+
+        # Observer 1 at identity — should see 'front' in visual, both in audio
+        r1 = multi.update(IDENTITY, [e1, e2])
+        r1_vis = [e.name for e, _ in r1["visual"]]
+        r1_aud = [e.name for e, _ in r1["audio"]]
+        assert "front" in r1_vis
+        assert "side" not in r1_vis
+        assert "front" in r1_aud
+
+        # Observer 2 at 90° — should see 'side' in visual, not 'front'
+        r2 = multi.update(_y_rot(90), [e1, e2])
+        r2_vis = [e.name for e, _ in r2["visual"]]
+        assert "side" in r2_vis
+        assert "front" not in r2_vis
