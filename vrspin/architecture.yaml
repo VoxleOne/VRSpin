@@ -85,6 +85,7 @@ components:
     methods:
       - register_entity(entity: SceneEntity)
       - update(user_quaternion: Quaternion) -> AttentionResult[]
+      - update_observers(observers: Observer[], cone_half_angle) -> dict[str, AttentionResult]
       - get_attended_entities() -> SceneEntity[]
 
   NPCAttentionAgent:
@@ -101,6 +102,16 @@ components:
       - update(user_quaternion: Quaternion, entities: SceneEntity[])
       - is_aware_of(entity_id: string) -> boolean
       - compute_rotation_to_target(target_quaternion: Quaternion) -> Quaternion
+
+  Observer:
+    type: protocol
+    description: "Any node with orientation and attention_cones can act as observer"
+    properties:
+      - orientation: Quaternion
+      - attention_cones: dict[str, AttentionCone]
+    implemented_by:
+      - NPC (via attention_cones property)
+      - VRUser (via visual/audio/haptic cones)
 
   MultiHeadAttention:
     type: multi_modal_attention
@@ -138,6 +149,11 @@ utilities:
   - name: direction_to_quaternion
     input: Vec3
     output: Quaternion
+
+  - name: angle_between_directions
+    input: [Vec3, Vec3]
+    output: float
+    description: "Angular distance in radians between two direction vectors"
 
   - name: slerp
     input: [Quaternion, Quaternion, float]

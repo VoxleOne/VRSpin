@@ -11,7 +11,8 @@ All scene perception and entity interaction is driven by a single input — the 
 quaternion — with no buttons, menus, or mouse clicks required.
 
 The repository is **fully implemented** across all five planned delivery phases.
-138 automated tests pass against the current codebase.
+279 automated tests pass against the current codebase
+(Python 123, JS 156).
 
 ---
 
@@ -143,6 +144,24 @@ python examples/vr_bridge_server.py [--host HOST] [--port PORT]
 
 ---
 
+## Multi-Observer Model (v0.6.0a0)
+
+The v0.6.0a0 parity refactor introduces a **multi-observer model** that generalises
+attention evaluation beyond a single VR user. Any node that implements the `Observer`
+protocol (i.e. exposes `orientation` and `attention_cones`) can act as an observer.
+
+| Capability | File(s) | Description |
+|---|---|---|
+| `Observer` protocol | `vrspin/scene.py` | Defines the observer contract: orientation + attention_cones |
+| `AttentionManager.update_observers()` | `vrspin/scene.py` | Evaluates attention for a list of `Observer` instances |
+| `NPC.observe()` | `vrspin/npc.py` | Returns observation results from the NPC's own perception cones |
+| `NPC.attention_cones` | `vrspin/npc.py` | Exposes the NPC's perception cones as a dict, satisfying `Observer` |
+| `VirtualPlaza.tick()` emits `npc_observation` | `vrspin/plaza.py` | NPCs emit observation events each tick |
+| Euler math replaced | `vrspin/cone.py`, `vrspin/npc.py`, `vrspin/plaza.py` | Uses SpinStep quaternion primitives instead of scipy `R.from_quat` |
+| JS multi-observer utilities | `src/core/spinstep.js`, `src/core/perception.js`, `src/render/behaviors.js` | `directionToQuaternion`, `angleBetweenDirections`, `quatFromXDeg`, `evaluateMultiObserverPerceptions`, NPC-as-observer |
+
+---
+
 ## Public API Coverage
 
 All symbols specified in `07-public-api-design.instructions.md` are present in `vrspin/__init__.py`:
@@ -185,7 +204,7 @@ from vrspin.multihead import MultiHeadAttention
 | `QuaternionDepthIterator` | `VirtualPlaza.tick()` — scene-tree traversal |
 | `forward_vector_from_quaternion(q)` | Re-exported in `vrspin.__init__`; `AttentionCone.get_forward_vector()` aligned to `-Z` convention |
 | `quaternion_from_euler(angles)` | Used in tests and demo scripts |
-| `direction_to_quaternion(direction)` | Re-exported in `vrspin.__init__` |
+| `direction_to_quaternion(direction)` | Re-exported in `vrspin.__init__`; used in `npc.py` for NPC facing direction computation |
 | `angle_between_directions(d1, d2)` | Re-exported in `vrspin.__init__` |
 | `get_relative_spin(nf, nt)` | Available (spec-listed) |
 | `rotate_quaternion(q, step)` | Available (spec-listed) |
@@ -201,11 +220,14 @@ tests/test_npc_agent.py           — 16 tests: NPCAttentionAgent, slerp, utilit
 tests/test_multihead.py           — 10 tests: MultiHeadAttention, merge_results
 tests/test_plaza_visualization.py — 27 tests: visualization logic, rendering (requires matplotlib)
 
-Python total: 111 tests passing (128 with matplotlib)
+Python total: 123 tests passing (128 with matplotlib)
 
 src/scene/Mesh.test.js            — 20 tests: Mesh constructor, init, draw, dispose
+src/core/spinstep.test.js         — 48 tests: directionToQuaternion, angleBetweenDirections, quatFromXDeg
+src/core/perception.test.js       — 52 tests: evaluateMultiObserverPerceptions
+src/render/behaviors.test.js      — 36 tests: NPC-as-observer behaviour
 
-WebGL total: 20 tests passing (run with `npm test`)
+JS total: 156 tests passing (run with `npm test`)
 ```
 
 ---
@@ -218,6 +240,7 @@ WebGL total: 20 tests passing (run with `npm test`)
 | `angle_between_directions()` in utils | Listed in §04 | ✅ Now re-exported from `vrspin` |
 | `AttentionManager.get_attended_entities()` | Listed in architecture.yaml | ✅ Now implemented |
 | `AttentionCone.get_forward_vector()` convention | Must match SpinStep `-Z` forward | ✅ Now aligned with SpinStep |
+| Multi-observer model | NPCs as observers | ✅ Implemented in v0.6.0a0 — `Observer` protocol, `NPC.observe()`, `update_observers()` |
 | C-extension / native plugin (Option B) | §08 mentions as production path | Not implemented (prototype-only scope) |
 | `examples/vr_plaza_demo.py` | Listed in Phase 4 | Covered by `demo_look_and_interact.py` at repo root |
 
@@ -229,5 +252,6 @@ The remaining gaps are out-of-scope for the current prototype and do not affect 
 
 The VRSpin repository **fully satisfies** the architectural specification across all five
 delivery phases. All core SpinStep primitives described in the instructions are wired into
-the VRSpin layer. The public API matches the specified interface. 107 automated tests pass.
+the VRSpin layer. The public API matches the specified interface. 279 automated tests pass
+(123 Python + 156 JS).
 The VR engine bridge is working and the demo runs end-to-end.

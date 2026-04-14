@@ -10,6 +10,9 @@ import {
   quatRotateVec3,
   forwardFromQuat,
   quatFromYDeg,
+  quatFromXDeg,
+  directionToQuaternion,
+  angleBetweenDirections,
   slerp,
   SpinNode,
   quaternionDepthIterate,
@@ -200,5 +203,86 @@ describe("spinstep — quaternionDepthIterate", () => {
     const names = visited.map(n => n.name)
     assert.ok(names.includes("root"))
     assert.ok(!names.includes("far_child"))
+  })
+})
+
+describe("spinstep — quatFromXDeg", () => {
+  it("0° returns identity", () => {
+    const q = quatFromXDeg(0)
+    assertClose(q[0], 0, "x")
+    assertClose(q[1], 0, "y")
+    assertClose(q[2], 0, "z")
+    assertClose(q[3], 1, "w")
+  })
+
+  it("90° rotation around X", () => {
+    const q = quatFromXDeg(90)
+    assertClose(q[0], Math.sin(Math.PI / 4), "x", 1e-4)
+    assertClose(q[1], 0, "y")
+    assertClose(q[2], 0, "z")
+    assertClose(q[3], Math.cos(Math.PI / 4), "w", 1e-4)
+  })
+})
+
+describe("spinstep — directionToQuaternion", () => {
+  it("[0, 0, -1] returns identity quaternion", () => {
+    const q = directionToQuaternion([0, 0, -1])
+    // Identity or equivalent — forward should be [0, 0, -1]
+    const fwd = forwardFromQuat(q)
+    assertVec3Close(fwd, [0, 0, -1], "forward from d2q identity")
+  })
+
+  it("[1, 0, 0] produces 90° Y rotation (forward = [-1, 0, 0])", () => {
+    const q = directionToQuaternion([1, 0, 0])
+    const fwd = forwardFromQuat(q)
+    // direction_to_quaternion([1,0,0]) should make forward point at [1,0,0]
+    assertVec3Close(fwd, [1, 0, 0], "forward from d2q right")
+  })
+
+  it("[-1, 0, 0] produces -90° Y rotation", () => {
+    const q = directionToQuaternion([-1, 0, 0])
+    const fwd = forwardFromQuat(q)
+    assertVec3Close(fwd, [-1, 0, 0], "forward from d2q left")
+  })
+
+  it("[0, 0, 1] produces 180° rotation (opposite direction)", () => {
+    const q = directionToQuaternion([0, 0, 1])
+    const fwd = forwardFromQuat(q)
+    assertVec3Close(fwd, [0, 0, 1], "forward from d2q back")
+  })
+
+  it("zero vector returns identity", () => {
+    const q = directionToQuaternion([0, 0, 0])
+    assert.deepStrictEqual(q, [0, 0, 0, 1])
+  })
+
+  it("unnormalized direction still works", () => {
+    const q = directionToQuaternion([0, 0, -5])
+    const fwd = forwardFromQuat(q)
+    assertVec3Close(fwd, [0, 0, -1], "forward from scaled direction")
+  })
+})
+
+describe("spinstep — angleBetweenDirections", () => {
+  it("same direction is 0", () => {
+    assertClose(angleBetweenDirections([0, 0, -1], [0, 0, -1]), 0, "same dir")
+  })
+
+  it("opposite directions is π", () => {
+    assertClose(angleBetweenDirections([0, 0, -1], [0, 0, 1]), Math.PI, "opposite", 1e-5)
+  })
+
+  it("orthogonal directions is π/2", () => {
+    assertClose(angleBetweenDirections([1, 0, 0], [0, 1, 0]), Math.PI / 2, "ortho", 1e-5)
+  })
+
+  it("45° angle", () => {
+    const d1 = [1, 0, 0]
+    const d2 = [1, 1, 0]  // 45° from d1
+    assertClose(angleBetweenDirections(d1, d2), Math.PI / 4, "45 deg", 1e-5)
+  })
+
+  it("zero vector returns 0", () => {
+    assertClose(angleBetweenDirections([0, 0, 0], [1, 0, 0]), 0, "zero vec")
   })
 })

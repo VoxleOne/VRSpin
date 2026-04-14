@@ -10,7 +10,7 @@
  */
 
 import { buildPlazaScene } from "../scene/plaza.js"
-import { evaluateAllPerceptions } from "../core/perception.js"
+import { evaluateAllPerceptions, evaluateMultiObserverPerceptions } from "../core/perception.js"
 import { PlazaRenderer } from "../render/renderer.js"
 import { createInputHandler } from "../render/input.js"
 import { updateBehaviors } from "../render/behaviors.js"
@@ -92,8 +92,18 @@ function loop(now) {
   // 2. Perception — evaluate SpinState for all nodes
   evaluateAllPerceptions(headQuat, nodes, deltaTime)
 
+  // 2b. NPC-as-observer — evaluate perception from each NPC's perspective
+  const npcNodes = nodes.filter(n => n.entityType === "npc")
+  const npcObservers = npcNodes.map(n => ({
+    id: n.id,
+    quat: n.metadata._currentFacing || n.orientation,
+  }))
+  const npcObserverResults = npcObservers.length > 0
+    ? evaluateMultiObserverPerceptions(npcObservers, nodes, deltaTime)
+    : null
+
   // 3. Behavior — update NPC slerp, panel pages, object effects
-  updateBehaviors(nodes, headQuat, deltaTime)
+  updateBehaviors(nodes, headQuat, deltaTime, npcObserverResults)
 
   // 4. Audio — update spatial audio gains
   audio.update(headQuat, nodes)

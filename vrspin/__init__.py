@@ -16,7 +16,7 @@ from .user import VRUser
 from .npc import NPC, NPCState, NPCAttentionAgent
 from .entities import InteractiveObject, AudioSource, KnowledgePanel, PanelPage
 from .plaza import VirtualPlaza, PlazaEvent
-from .scene import SceneEntity, AttentionManager, AttentionResult
+from .scene import SceneEntity, AttentionManager, AttentionResult, Observer
 
 # Re-export utility functions from SpinStep for convenience.
 from spinstep.utils import (
@@ -44,6 +44,7 @@ __all__ = [
     "SceneEntity",
     "AttentionManager",
     "AttentionResult",
+    "Observer",
     "NPCAttentionAgent",
     # Utility functions
     "forward_vector_from_quaternion",

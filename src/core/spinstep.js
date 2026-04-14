@@ -1,5 +1,5 @@
 /**
- * SpinStep 0.3.1a1 — JavaScript port of core quaternion math and tree traversal.
+ * SpinStep 0.6.0a0 — JavaScript port of core quaternion math and tree traversal.
  *
  * Quaternion convention: [x, y, z, w] matching SpinStep Python.
  * Forward direction: -Z axis (identity quaternion looks toward [0, 0, -1]).
@@ -152,6 +152,74 @@ export function slerp(q1, q2, t) {
     wa * a[2] + wb * b[2],
     wa * a[3] + wb * b[3],
   ])
+}
+
+/**
+ * Create a quaternion from an X-axis rotation in degrees.
+ * @param {number} deg - angle in degrees
+ * @returns {number[]} [x, y, z, w]
+ */
+export function quatFromXDeg(deg) {
+  const rad = deg * Math.PI / 180
+  // Rotation around X: [sin(θ/2), 0, 0, cos(θ/2)]
+  return [Math.sin(rad / 2), 0, 0, Math.cos(rad / 2)]
+}
+
+/**
+ * Compute the quaternion that rotates the -Z forward axis to the given direction.
+ * Mirrors spinstep.utils.direction_to_quaternion.
+ * @param {number[]} dir - 3D direction vector [x, y, z]
+ * @returns {number[]} unit quaternion [x, y, z, w]
+ */
+export function directionToQuaternion(dir) {
+  // Normalize direction
+  const len = Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2])
+  if (len < 1e-8) return [0, 0, 0, 1]
+  const dx = dir[0] / len
+  const dy = dir[1] / len
+  const dz = dir[2] / len
+
+  // Forward is -Z: [0, 0, -1]
+  // We need the rotation from [0, 0, -1] to [dx, dy, dz]
+  // Using the half-vector method: axis = cross(from, to), angle via dot
+  const fx = 0, fy = 0, fz = -1
+
+  const dot = fx * dx + fy * dy + fz * dz  // = -dz
+
+  if (dot > 0.9999) {
+    // Nearly identical — identity quaternion
+    return [0, 0, 0, 1]
+  }
+  if (dot < -0.9999) {
+    // Opposite direction — 180° rotation around Y axis
+    return [0, 1, 0, 0]
+  }
+
+  // cross(from, to) = [fy*dz - fz*dy, fz*dx - fx*dz, fx*dy - fy*dx]
+  const cx = fy * dz - fz * dy  // = dy
+  const cy = fz * dx - fx * dz  // = -dx
+  const cz = fx * dy - fy * dx  // = 0
+
+  // q = [cx, cy, cz, 1 + dot] then normalize
+  const w = 1 + dot
+  const qLen = Math.sqrt(cx * cx + cy * cy + cz * cz + w * w)
+  return [cx / qLen, cy / qLen, cz / qLen, w / qLen]
+}
+
+/**
+ * Compute the angle in radians between two direction vectors.
+ * Mirrors spinstep.utils.angle_between_directions.
+ * @param {number[]} d1 - first 3D direction vector
+ * @param {number[]} d2 - second 3D direction vector
+ * @returns {number} angle in radians [0, π]
+ */
+export function angleBetweenDirections(d1, d2) {
+  const len1 = Math.sqrt(d1[0] * d1[0] + d1[1] * d1[1] + d1[2] * d1[2])
+  const len2 = Math.sqrt(d2[0] * d2[0] + d2[1] * d2[1] + d2[2] * d2[2])
+  if (len1 < 1e-8 || len2 < 1e-8) return 0
+
+  const dot = (d1[0] * d2[0] + d1[1] * d2[1] + d1[2] * d2[2]) / (len1 * len2)
+  return Math.acos(Math.min(1.0, Math.max(-1.0, dot)))
 }
 
 // ---------------------------------------------------------------------------

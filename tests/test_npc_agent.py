@@ -191,3 +191,68 @@ class TestNPCAttentionAgent:
             ent, perception_half_angle=0.5, idle_orientation=custom_idle,
         )
         np.testing.assert_allclose(agent.idle_orientation, custom_idle, atol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# NPC-as-observer
+# ---------------------------------------------------------------------------
+
+
+class TestNPCObserver:
+    """Tests for NPC.observe(), NPC.attention_cones, and related utilities."""
+
+    def test_npc_observe_returns_attention_result(self):
+        from vrspin import NPC
+        from vrspin.scene import AttentionResult
+
+        npc = NPC("Guard", IDENTITY, perception_half_angle=np.radians(60))
+        entities = [
+            SceneEntity("a", _y_rot(10)),
+            SceneEntity("b", _y_rot(30)),
+            SceneEntity("c", _y_rot(90)),
+        ]
+        result = npc.observe(entities)
+        assert isinstance(result, AttentionResult)
+
+    def test_npc_observe_finds_nearby_entities(self):
+        from vrspin import NPC
+
+        npc = NPC("Guard", IDENTITY, perception_half_angle=np.radians(60))
+        near = SceneEntity("near", _y_rot(10))
+        far = SceneEntity("far", _y_rot(160))
+        result = npc.observe([near, far])
+        attended_names = [e.name for e, _ in result.attended]
+        unattended_names = [e.name for e in result.unattended]
+        assert "near" in attended_names
+        assert "far" in unattended_names
+
+    def test_npc_observe_skips_self(self):
+        from vrspin import NPC
+
+        npc = NPC("Elena", IDENTITY, perception_half_angle=np.radians(120))
+        self_entity = SceneEntity("Elena", IDENTITY)
+        other = SceneEntity("Fountain", _y_rot(10))
+        result = npc.observe([self_entity, other])
+        all_names = [e.name for e, _ in result.attended] + [
+            e.name for e in result.unattended
+        ]
+        assert "Elena" not in all_names
+        assert "Fountain" in [e.name for e, _ in result.attended]
+
+    def test_npc_attention_cones_property(self):
+        from vrspin import NPC
+
+        npc = NPC("Kai", IDENTITY)
+        cones = npc.attention_cones
+        assert isinstance(cones, dict)
+        assert "perception" in cones
+        assert isinstance(cones["perception"], AttentionCone)
+
+    def test_npc_direction_to_quaternion_usage(self):
+        from vrspin import direction_to_quaternion, forward_vector_from_quaternion
+
+        direction = np.array([1.0, 0.0, 0.0])
+        q = direction_to_quaternion(direction)
+        fwd = forward_vector_from_quaternion(q)
+        norm_dir = direction / np.linalg.norm(direction)
+        np.testing.assert_allclose(fwd, norm_dir, atol=1e-5)

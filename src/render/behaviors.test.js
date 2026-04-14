@@ -169,3 +169,50 @@ describe("behaviors — updateBehaviors", () => {
     updateBehaviors([audioNode], quatFromYDeg(0), 1 / 60)
   })
 })
+
+describe("behaviors — NPC multi-observer", () => {
+  it("test_npc_tracks_observed_entities", () => {
+    const node = makeNPCNode()
+    node.id = "GuardNPC"
+
+    const npcObserverResults = {
+      "GuardNPC": [
+        { node: { id: "Player1" }, state: "perceived", dwellTime: 0.3 },
+        { node: { id: "Player2" }, state: "focused", dwellTime: 0.8 },
+      ],
+    }
+
+    updateBehaviors([node], quatFromYDeg(170), 1 / 60, npcObserverResults)
+
+    assert.ok(node.npcObservedEntities)
+    assert.ok(node.npcObservedEntities["Player1"])
+    assert.strictEqual(node.npcObservedEntities["Player1"].state, "perceived")
+    assert.strictEqual(node.npcObservedEntities["Player1"].dwellTime, 0.3)
+    assert.ok(node.npcObservedEntities["Player2"])
+    assert.strictEqual(node.npcObservedEntities["Player2"].state, "focused")
+    assert.strictEqual(node.npcObservedEntities["Player2"].dwellTime, 0.8)
+  })
+
+  it("test_npc_clears_unobserved_entities", () => {
+    const node = makeNPCNode()
+    node.id = "GuardNPC"
+
+    // First call: NPC observes Player1 as perceived
+    const resultsActive = {
+      "GuardNPC": [
+        { node: { id: "Player1" }, state: "perceived", dwellTime: 0.3 },
+      ],
+    }
+    updateBehaviors([node], quatFromYDeg(170), 1 / 60, resultsActive)
+    assert.ok(node.npcObservedEntities["Player1"])
+
+    // Second call: Player1 now idle → should be removed
+    const resultsIdle = {
+      "GuardNPC": [
+        { node: { id: "Player1" }, state: "idle", dwellTime: 0 },
+      ],
+    }
+    updateBehaviors([node], quatFromYDeg(170), 1 / 60, resultsIdle)
+    assert.strictEqual(node.npcObservedEntities["Player1"], undefined)
+  })
+})

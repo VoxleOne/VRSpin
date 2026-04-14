@@ -8,7 +8,7 @@
  * @module render/input
  */
 
-import { quatNormalize, quatMultiply } from "../core/spinstep.js"
+import { quatNormalize, quatMultiply, quatFromYDeg, quatFromXDeg } from "../core/spinstep.js"
 
 /**
  * Create an input handler attached to a canvas.
@@ -90,14 +90,9 @@ export function createInputHandler(canvas) {
         pitchDeg = Math.max(-89, pitchDeg)
       }
 
-      // Build quaternion: yaw (Y) * pitch (X)
-      const yawRad = yawDeg * Math.PI / 180
-      const pitchRad = pitchDeg * Math.PI / 180
-
-      // Yaw: rotation around Y
-      const qYaw = [0, Math.sin(yawRad / 2), 0, Math.cos(yawRad / 2)]
-      // Pitch: rotation around X
-      const qPitch = [Math.sin(pitchRad / 2), 0, 0, Math.cos(pitchRad / 2)]
+      // Build quaternion: yaw (Y) * pitch (X) using spinstep helpers
+      const qYaw = quatFromYDeg(yawDeg)
+      const qPitch = quatFromXDeg(pitchDeg)
 
       return quatNormalize(quatMultiply(qYaw, qPitch))
     },

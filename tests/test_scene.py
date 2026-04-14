@@ -155,3 +155,81 @@ class TestAttentionManager:
     def test_get_attended_entities_before_update(self):
         mgr = AttentionManager()
         assert mgr.get_attended_entities() == []
+
+
+# ---------------------------------------------------------------------------
+# Multi-observer AttentionManager
+# ---------------------------------------------------------------------------
+
+
+class TestMultiObserver:
+    """Tests for AttentionManager.update_observers and Observer protocol."""
+
+    def test_update_observers_two_observers(self):
+        """Two observers with different orientations get independent results."""
+
+        class _SimpleObserver:
+            def __init__(self, name, orientation):
+                self.name = name
+                self._orientation = np.asarray(orientation, dtype=float)
+                self._cones = {
+                    "visual": AttentionCone(
+                        self._orientation, half_angle=np.radians(45), falloff="linear",
+                    ),
+                }
+
+            @property
+            def orientation(self):
+                return self._orientation
+
+            @property
+            def attention_cones(self):
+                return self._cones
+
+        obs1 = _SimpleObserver("obs1", IDENTITY)
+        obs2 = _SimpleObserver("obs2", _y_rot(90))
+
+        e1 = SceneEntity("front", IDENTITY)
+        e2 = SceneEntity("left", _y_rot(90))
+        e3 = SceneEntity("behind", _y_rot(180))
+
+        mgr = AttentionManager([e1, e2, e3])
+        results = mgr.update_observers(
+            [obs1, obs2], cone_half_angle=np.radians(45),
+        )
+
+        assert "obs1" in results
+        assert "obs2" in results
+        # obs1 faces forward → should attend 'front', not 'left' or 'behind'
+        obs1_names = [ent.name for ent, _ in results["obs1"].attended]
+        assert "front" in obs1_names
+        assert "behind" not in obs1_names
+        # obs2 faces 90° → should attend 'left'
+        obs2_names = [ent.name for ent, _ in results["obs2"].attended]
+        assert "left" in obs2_names
+        assert "behind" not in obs2_names
+
+    def test_update_observers_backward_compatible(self):
+        """mgr.update() still works with a single user_quat."""
+        ent = SceneEntity("a", _y_rot(5))
+        mgr = AttentionManager([ent])
+        result = mgr.update(IDENTITY, cone_half_angle=np.radians(45))
+        assert isinstance(result, AttentionResult)
+        assert len(result.attended) == 1
+        assert result.attended[0][0].name == "a"
+
+    def test_observer_protocol_check(self):
+        """An object with orientation and attention_cones satisfies Observer."""
+        from vrspin.scene import Observer
+
+        class _MyObserver:
+            @property
+            def orientation(self):
+                return IDENTITY
+
+            @property
+            def attention_cones(self):
+                return {"visual": AttentionCone(IDENTITY, half_angle=0.5)}
+
+        obs = _MyObserver()
+        assert isinstance(obs, Observer)

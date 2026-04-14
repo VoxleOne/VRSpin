@@ -10,17 +10,22 @@ from __future__ import annotations
 __all__ = ["NPC", "NPCState", "NPCAttentionAgent"]
 
 from enum import Enum, auto
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy.spatial.transform import Rotation as R, Slerp
 
 from spinstep import Node
-from spinstep.utils import is_within_angle_threshold, quaternion_distance
+from spinstep.utils import (
+    is_within_angle_threshold,
+    quaternion_distance,
+    forward_vector_from_quaternion,
+    direction_to_quaternion,
+)
 
 from .cone import AttentionCone
 from .user import VRUser
+from .utils import slerp as _vrspin_slerp
 
 
 class NPCState(Enum):
@@ -120,6 +125,56 @@ class NPC:
         """
         return self.perception_cone.is_in_cone(user.orientation)
 
+    @property
+    def attention_cones(self) -> Dict[str, AttentionCone]:
+        """Return a dict of attention cones for multi-observer support.
+
+        The NPC exposes its perception cone so that it can satisfy the
+        :class:`~vrspin.scene.Observer` protocol and act as an observer
+        in the multi-observer model.
+        """
+        return {"perception": self.perception_cone}
+
+    def observe(
+        self,
+        entities: List,
+        cone_half_angle: Optional[float] = None,
+    ) -> "AttentionResult":
+        """Query scene entities from this NPC's perspective.
+
+        Evaluates each entity against the NPC's perception cone and returns
+        an :class:`~vrspin.scene.AttentionResult` describing which entities
+        the NPC is attending to.
+
+        Args:
+            entities: List of :class:`~vrspin.scene.SceneEntity` objects.
+            cone_half_angle: Override half-angle in radians.  If ``None``,
+                uses the NPC's perception cone half-angle.
+
+        Returns:
+            :class:`~vrspin.scene.AttentionResult`.
+        """
+        from .scene import AttentionResult
+
+        half = cone_half_angle if cone_half_angle is not None else self.perception_cone.half_angle
+        cone = AttentionCone(
+            self.orientation,
+            half_angle=half,
+            falloff="linear",
+        )
+        attended = []
+        unattended = []
+        for entity in entities:
+            if getattr(entity, "name", None) == self.name:
+                continue  # skip self
+            strength = cone.attenuation(entity.orientation)
+            if strength > 0.0:
+                attended.append((entity, strength))
+            else:
+                unattended.append(entity)
+        attended.sort(key=lambda t: t[1], reverse=True)
+        return AttentionResult(attended=attended, unattended=unattended)
+
     # ------------------------------------------------------------------
     # Rotation toward target
     # ------------------------------------------------------------------
@@ -132,17 +187,12 @@ class NPC:
         """Advance one SLERP step toward :attr:`target_orientation`."""
         if self.target_orientation is None:
             return
-        current = R.from_quat(self.node.orientation)
-        target = R.from_quat(self.target_orientation)
-        times = [0.0, 1.0]
-        key_rots = R.from_quat(
-            np.stack([current.as_quat(), target.as_quat()])
+        new_quat = _vrspin_slerp(
+            self.node.orientation, self.target_orientation, self.slerp_speed
         )
-        slerp = Slerp(times, key_rots)
-        new_rot = slerp([self.slerp_speed])[0]
-        new_quat = new_rot.as_quat()
+        new_quat = new_quat / np.linalg.norm(new_quat)
         # Update node orientation (replace array values in place)
-        self.node.orientation[:] = new_quat / np.linalg.norm(new_quat)
+        self.node.orientation[:] = new_quat
         self.perception_cone.update_orientation(self.node.orientation)
 
     # ------------------------------------------------------------------
@@ -175,8 +225,10 @@ class NPC:
                 events.append(
                     f"NPC {self.name!r} notices {user.name!r} — begins rotating"
                 )
-                # Target: face back toward the user (inverse of user orientation)
-                facing_user = R.from_quat(user.orientation).inv().as_quat()
+                # Target: face back toward the user (quaternion conjugate)
+                # For unit quaternions, inv() == conjugate: [-x, -y, -z, w]
+                uq = user.orientation
+                facing_user = np.array([-uq[0], -uq[1], -uq[2], uq[3]])
                 self._set_target_orientation(facing_user)
 
             if self.state in (NPCState.NOTICING, NPCState.ENGAGED):
@@ -184,10 +236,9 @@ class NPC:
 
             # Check whether fully turned
             if self.target_orientation is not None:
-                angle_remaining = (
-                    R.from_quat(self.node.orientation).inv()
-                    * R.from_quat(self.target_orientation)
-                ).magnitude()
+                angle_remaining = quaternion_distance(
+                    self.node.orientation, self.target_orientation
+                )
                 if angle_remaining < self.ENGAGED_THRESHOLD and self.state == NPCState.NOTICING:
                     self.state = NPCState.ENGAGED
                     events.append(
@@ -309,11 +360,7 @@ class NPCAttentionAgent:
         target = np.asarray(target_quat, dtype=float)
         target = target / np.linalg.norm(target)
 
-        current = R.from_quat(self.entity.orientation)
-        goal = R.from_quat(target)
-        key_rots = R.from_quat(np.stack([current.as_quat(), goal.as_quat()]))
-        interp = Slerp([0.0, 1.0], key_rots)
-        new_quat = interp([t])[0].as_quat()
+        new_quat = _vrspin_slerp(self.entity.orientation, target, t)
         new_quat = new_quat / np.linalg.norm(new_quat)
         self.entity.orientation[:] = new_quat
 

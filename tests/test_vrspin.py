@@ -468,3 +468,32 @@ class TestVirtualPlaza:
         user.set_orientation(_y_rot(150.0))
         plaza.tick(user)
         assert fountain_audio.volume < fountain_audio.base_volume
+
+
+# ===========================================================================
+# VirtualPlaza multi-observer and refactored code
+# ===========================================================================
+
+
+class TestVirtualPlazaMultiObserver:
+    """Tests for NPC-observation events and SpinStep-backed cone math."""
+
+    def test_tick_emits_npc_observation_events(self):
+        plaza = VirtualPlaza()
+        user = VRUser("Maya")
+        user.set_orientation(_y_rot(0.0))
+        events = plaza.tick(user)
+        npc_obs = [e for e in events if e.modality == "npc_observation"]
+        assert len(npc_obs) > 0, "Expected at least one npc_observation event"
+        for ev in npc_obs:
+            assert isinstance(ev, PlazaEvent)
+
+    def test_cone_forward_vector_with_spinstep(self):
+        cone = AttentionCone(IDENTITY, half_angle=0.5)
+        fwd = cone.get_forward_vector()
+        np.testing.assert_allclose(fwd, [0, 0, -1], atol=1e-6)
+
+    def test_cone_angular_distance_uses_spinstep(self):
+        cone = AttentionCone(IDENTITY, half_angle=1.0)
+        dist = cone.angular_distance_to(_y_rot(90.0))
+        assert np.isclose(dist, np.pi / 2, atol=1e-4)

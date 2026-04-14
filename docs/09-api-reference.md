@@ -195,6 +195,94 @@ for entity, strength in result.attended:
 
 ---
 
+### `Observer` Protocol
+
+```python
+from vrspin.scene import Observer
+```
+
+Any object that exposes `orientation` (a quaternion) and `attention_cones` (a dict of
+`AttentionCone` instances) satisfies the `Observer` protocol and can be passed to
+`AttentionManager.update_observers()`.
+
+**Properties**
+
+| Name | Type | Description |
+|---|---|---|
+| `orientation` | `np.ndarray (4,)` | Current orientation quaternion `[x, y, z, w]` |
+| `attention_cones` | `dict[str, AttentionCone]` | Named perception cones (e.g. `'visual'`, `'audio'`) |
+
+**Implemented by**
+
+- `NPC` — via the `attention_cones` property (perception cone keyed as `'perception'`)
+- `VRUser` — via `visual_cone`, `audio_cone`, `haptic_cone`
+
+```python
+# Any object satisfying the protocol works as an observer
+class CustomObserver:
+    def __init__(self, orientation, cones):
+        self.orientation = orientation
+        self.attention_cones = cones
+```
+
+---
+
+#### `AttentionManager.update_observers(observers, cone_half_angle, falloff='linear') → dict[str, AttentionResult]`
+
+Evaluate attention for multiple observers simultaneously. Each observer's cones are
+queried against the registered entities.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `observers` | `list[Observer]` | Objects satisfying the `Observer` protocol |
+| `cone_half_angle` | `float` | Default half-angle in radians (used when a cone doesn't specify one) |
+| `falloff` | `str \| None` | Attenuation curve: `'linear'` (default), `'cosine'`, or `None` |
+
+**Returns** `dict[str, AttentionResult]` — keyed by observer name.
+
+```python
+results = manager.update_observers([npc1, npc2, user], cone_half_angle=np.radians(60))
+for observer_id, result in results.items():
+    print(f"{observer_id}: {len(result.attended)} entities attended")
+```
+
+---
+
+#### `NPC.observe(entities, cone_half_angle=None) → AttentionResult`
+
+Run the NPC's perception cone against the given entities and return an `AttentionResult`.
+This makes the NPC an active observer rather than a passive target.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `entities` | `list[SceneEntity]` | Scene entities to evaluate |
+| `cone_half_angle` | `float \| None` | Override half-angle in radians; defaults to the NPC's perception cone |
+
+**Returns** `AttentionResult` — attended and unattended entities from the NPC's point of view.
+
+```python
+result = npc.observe(entities)
+for entity, strength in result.attended:
+    print(f"  {entity.name}: {strength:.2f}")
+```
+
+---
+
+#### `NPC.attention_cones` — property
+
+```python
+cones = npc.attention_cones  # dict[str, AttentionCone]
+```
+
+Exposes the NPC's perception cones as a dictionary, satisfying the `Observer` protocol.
+Typically contains a single `'perception'` cone derived from `perception_half_angle`.
+
+---
+
 ## `vrspin.npc` — NPC Agents
 
 ```python
